@@ -1,0 +1,9 @@
+# Transport master / status list. One row per transporter name as it appears in the search results.
+#   status must be exactly "Active" or "Not Active".
+#   Not Active transporters are never returned by the API or shown in the table.
+#   Names match exactly (case/spacing ignored): "DTDC" and "DTDC Transport" are separate transporters.
+#   A transporter with NO row here is treated as Active (setting: UNLISTED_TRANSPORT_STATUS).
+#   Changes are picked up automatically; no restart needed.
+# No statuses are pre-filled on purpose: add a row only for transporters whose status you know, e.g.
+#   Example Transport,Not Active
+transport_name,status

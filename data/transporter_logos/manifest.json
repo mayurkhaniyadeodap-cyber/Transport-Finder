@@ -1,0 +1,16 @@
+{
+  "_readme": "Verified official company logos. Each is attached ONLY to the transporter whose name is exactly transport_name (case/spacing ignored) -- never to similar names. Every file was taken from the company's own website (source_url = the page it appears on; logo_url = the image itself) and checked by eye. An Admin upload in Manage Transporters always overrides these. To add one: put a JPEG/PNG/WebP here and add an entry with its source; SVG is not served.",
+  "logos": [
+    {"transport_name": "TCI Express", "file": "tci-express.png", "source_url": "https://www.tciexpress.in/", "logo_url": "https://www.tciexpress.in/images/logo.png", "retrieved": "2026-09-29"},
+    {"transport_name": "TCI Freight", "file": "tci-freight.png", "source_url": "https://tcifreight.in/", "logo_url": "https://tcifreight.in/wp-content/uploads/2026/01/TCI-Freight-logo.png", "retrieved": "2026-09-29"},
+    {"transport_name": "Kerala Roadways", "file": "kerala-roadways.webp", "source_url": "https://www.krs.in/", "logo_url": "https://www.krs.in/images/krs-logo.webp", "retrieved": "2026-09-29", "note": "Kerala Roadways (P) Ltd, now branded KRS"},
+    {"transport_name": "Sugam Parivahan", "file": "sugam-parivahan.png", "source_url": "https://www.sugamgroup.com/", "logo_url": "https://www.sugamgroup.com/wp-content/uploads/logo-1-1.png", "retrieved": "2026-09-29"},
+    {"transport_name": "Sugam Parivahan Pvt.Ltd", "file": "sugam-parivahan.png", "source_url": "https://www.sugamgroup.com/", "logo_url": "https://www.sugamgroup.com/wp-content/uploads/logo-1-1.png", "retrieved": "2026-09-29"},
+    {"transport_name": "Associated Road Carriers Limited (Arc)", "file": "arc.jpg", "source_url": "https://www.arclimited.com/", "logo_url": "https://www.arclimited.com/images/logoo/logo.jpg", "retrieved": "2026-09-29"},
+    {"transport_name": "Necc North Eastern Carrying Corporation Ltd", "file": "necc.png", "source_url": "https://www.neccgroup.com/", "logo_url": "https://www.neccgroup.com/assets/img/NeccLogo.webp", "retrieved": "2026-09-29", "note": "cropped to the logo (the original file includes a blank header background)"},
+    {"transport_name": "Jaipur Golden Transport Co. Pvt. Ltd", "file": "jaipur-golden.png", "source_url": "https://jaipurgolden.in/", "logo_url": "https://jaipurgolden.in/wp-content/themes/jaipurgolden/img/jaipur-golden-logo.png", "retrieved": "2026-09-29"},
+    {"transport_name": "Jaipur Golden", "file": "jaipur-golden.png", "source_url": "https://jaipurgolden.in/", "logo_url": "https://jaipurgolden.in/wp-content/themes/jaipurgolden/img/jaipur-golden-logo.png", "retrieved": "2026-09-29"},
+    {"transport_name": "Inland World Logistics", "file": "inland-world.png", "source_url": "https://www.inlandworldlogistics.com/", "logo_url": "https://www.inlandworldlogistics.com/wp-content/uploads/2019/02/cropped-logistic.png", "retrieved": "2026-09-29"},
+    {"transport_name": "Shree Azad Transport Co. Pvt.Ltd", "file": "shree-azad.png", "source_url": "https://www.shreeazad.com/", "logo_url": "https://www.shreeazad.com/img/logo.png", "retrieved": "2026-09-29"}
+  ]
+}

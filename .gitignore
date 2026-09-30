@@ -1,0 +1,29 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+node_modules/
+dist/
+*.db
+.pytest_cache/
+.cache/
+
+# Environment files: only the documented examples (and the non-secret frontend dev switch) are tracked
+.env.*
+!.env.example
+!frontend/.env.development
+
+# Private keys and certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+
+# Logs, backups and source data (order exports contain customer details)
+*.log
+backups/
+*.csv.bak
+source/
