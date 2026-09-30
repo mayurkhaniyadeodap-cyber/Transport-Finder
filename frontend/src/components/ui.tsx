@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { initials } from "../brandBadge";
+import { withBase } from "../services/base";
 import { deriveTransportType } from "../searchDefaults";
 import { ChevronLeftIcon, ChevronRightIcon } from "./Icons";
 
@@ -9,7 +10,7 @@ const typeClass = (type: string) => `type-${type.toLowerCase()}`;
  * If it fails to load, falls back to the short-name tile. */
 function useImage(photoUrl?: string | null) {
   const [failed, setFailed] = useState<string | null>(null);
-  const url = photoUrl && photoUrl !== failed ? photoUrl : null;
+  const url = photoUrl && photoUrl !== failed ? withBase(photoUrl) : null;
   return { url, onError: () => setFailed(photoUrl ?? null) };
 }
 

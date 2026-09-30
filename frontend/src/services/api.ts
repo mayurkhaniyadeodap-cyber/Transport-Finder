@@ -1,3 +1,4 @@
+import { withBase } from "./base";
 export interface TransportResult {
   transport_name: string;
   branch_name: string | null;
@@ -70,7 +71,7 @@ export async function searchTransport(params: SearchParams, page = 1, pageSize =
   });
   qs.set("page", String(page));
   qs.set("page_size", String(pageSize));
-  const res = await fetch(`/api/transport/search?${qs.toString()}`);
+  const res = await fetch(withBase(`/api/transport/search?${qs.toString()}`));
   if (!res.ok) throw new Error(`Server error (${res.status})`);
   return res.json();
 }
@@ -82,7 +83,7 @@ export async function suggestTransport(q: string, limit = 8): Promise<Suggestion
   const query = q.trim();
   if (!query || USE_MOCK) return []; // no mock backing for suggestions; a real backend is required
   const qs = new URLSearchParams({ q: query, limit: String(limit) });
-  const res = await fetch(`/api/transport/suggest?${qs.toString()}`);
+  const res = await fetch(withBase(`/api/transport/suggest?${qs.toString()}`));
   if (!res.ok) return []; // suggestions are a soft-fail convenience, never block typing/search
   return res.json();
 }

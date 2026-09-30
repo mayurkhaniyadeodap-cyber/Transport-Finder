@@ -1,3 +1,4 @@
+import { withBase } from "./base";
 import type { Role } from "../pages/LoginPage";
 import { USE_MOCK } from "./api";
 
@@ -34,7 +35,7 @@ export class ApiError extends Error {
 }
 
 async function call(url: string, token: string | null, options: RequestInit = {}): Promise<any> {
-  const res = await fetch(url, {
+  const res = await fetch(withBase(url), {
     ...options,
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });

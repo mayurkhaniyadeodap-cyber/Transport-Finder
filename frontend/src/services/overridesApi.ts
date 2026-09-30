@@ -1,6 +1,7 @@
 // Transporter Management: local manual overrides only. Never touches the RDS/CSV/Excel data —
 // see backend/app/services/overrides_store.py. Priority: RDS real data -> local override -> combined result.
 
+import { withBase } from "./base";
 import { loadSession } from "../session";
 
 export type OverrideStatus = "Active" | "Not Active";
@@ -37,7 +38,7 @@ export interface OverrideFields {
 }
 
 async function call(url: string, options?: RequestInit): Promise<any> {
-  const res = await fetch(url, {
+  const res = await fetch(withBase(url), {
     ...options,
     headers: { "Content-Type": "application/json", ...authHeader() },
   });
@@ -126,7 +127,7 @@ export const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
 
 /** Sends the image file itself as the request body (the server checks its real bytes). */
 export async function uploadTransporterPhoto(transport_name: string, file: File): Promise<{ photo_url: string }> {
-  const res = await fetch(`/api/manage/transporters/photo?${new URLSearchParams({ transport_name })}`, {
+  const res = await fetch(withBase(`/api/manage/transporters/photo?${new URLSearchParams({ transport_name })}`), {
     method: "POST",
     headers: { "Content-Type": file.type || "application/octet-stream", ...authHeader() },
     body: file,
