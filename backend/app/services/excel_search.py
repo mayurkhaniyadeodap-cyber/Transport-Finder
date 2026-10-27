@@ -242,7 +242,7 @@ def _catalog(idx: src.ExcelIndex, overrides: dict[tuple, dict], tsettings: dict[
     """The real-data groups (_transporter_groups) with an Admin's transporter-level edits applied —
     what Search, suggestions and Manage Transporters all read:
       groups:     {key: {"name" (displayed), "base_name", "entries", "cities", "pincodes", "is_new"}}
-      entries:    every entry, flat (city/state search);  by_pincode: pincode -> entries
+      entries:    every entry, flat;  by_pincode / by_city / by_state: pincode / city key / state key -> entries
       by_name:    match key of each displayed name -> group key (transporter-name search, actions)
     A rename only changes the displayed name. Edited Service Cities / Pincodes (or an Admin-added
     transporter) replace that transporter's real entries with generated ones: one per pincode
@@ -279,11 +279,17 @@ def _catalog(idx: src.ExcelIndex, overrides: dict[tuple, dict], tsettings: dict[
 
     flat = [e for g in groups.values() for e in g["entries"]]
     by_pincode: dict[str, list[src.Entry]] = {}
+    by_city: dict[str, list[src.Entry]] = {}
+    by_state: dict[str, list[src.Entry]] = {}
     for e in flat:
         if e.pincode:
             by_pincode.setdefault(e.pincode, []).append(e)
+        if e.city:
+            by_city.setdefault(src.key(e.city), []).append(e)
+        if e.state:
+            by_state.setdefault(src.key(e.state), []).append(e)
     catalog = {
-        "groups": groups, "entries": flat, "by_pincode": by_pincode,
+        "groups": groups, "entries": flat, "by_pincode": by_pincode, "by_city": by_city, "by_state": by_state,
         "by_name": {_transporter_key(g["name"]): gk for gk, g in groups.items()},
     }
     _catalog_cache = {"base": base, "signature": signature, "catalog": catalog}
@@ -352,10 +358,11 @@ def dedupe_transport_rows(rows: list[TransportResult]) -> list[TransportResult]:
     return sorted(combined, key=lambda r: r.transport_name.lower())
 
 
-def _official_logo(gk: str, groups: dict[str, dict]) -> dict | None:
+def _official_logo(gk: str, groups: dict[str, dict], logos: dict[str, dict] | None = None) -> dict | None:
     """The verified logo whose name is exactly this transporter's displayed name, or else exactly
     its original (pre-rename) name -- the same transporter either way. Never a similar name."""
-    logos = transporter_logos.official_logos()
+    if logos is None:
+        logos = transporter_logos.official_logos()
     g = groups.get(gk)
     return (logos.get(_transporter_key(g["name"])) if g else None) or logos.get(gk)
 
@@ -364,9 +371,10 @@ def _photo_versions(groups: dict[str, dict]) -> dict[str, tuple[str, str]]:
     """name_key -> (source, content hash) for every transporter with an image: a verified official
     logo (exact-name match only), with an Admin-uploaded photo taking precedence over it."""
     photos = {}
-    if transporter_logos.official_logos():
+    logos = transporter_logos.official_logos()  # once per request: it re-checks the logo folder on disk
+    if logos:
         for gk in groups:
-            logo = _official_logo(gk, groups)
+            logo = _official_logo(gk, groups, logos)
             if logo:
                 photos[gk] = ("official", logo["sha256"])
     photos.update({gk: ("admin", sha) for gk, sha in overrides_store.list_photo_versions(Path(settings.overrides_db_path)).items()})
@@ -490,15 +498,14 @@ def search_transport(query: SearchQuery, page: int = 1, page_size: int | None = 
         ck = src.key(city)
         sk = src.key(state) if state else None
         rows = active([
-            e for e in cat["entries"]
-            if e.city and src.key(e.city) == ck and (sk is None or (e.state and src.key(e.state) == sk))
+            e for e in cat["by_city"].get(ck, [])
+            if sk is None or (e.state and src.key(e.state) == sk)
         ])
         if rows:
             return respond("city_state", rows)
 
     if state:
-        sk = src.key(state)
-        rows = active([e for e in cat["entries"] if e.state and src.key(e.state) == sk])
+        rows = active(cat["by_state"].get(src.key(state), []))
         if rows:
             return respond("state", rows)
 
@@ -769,6 +776,16 @@ def _suggest_vocab() -> dict[str, list]:
     }
     _suggest_cache = {"catalog": cat, "statuses": statuses, "vocab": vocab}
     return vocab
+
+
+def warm() -> None:
+    """Builds the index and everything derived from it (catalog, autocomplete vocabulary) ahead of
+    time, so no user's search pays for it: at startup, and after each background RDS refresh."""
+    if settings.data_source in ("rds", "vacalvers_csv", "excel"):
+        _suggest_vocab()
+
+
+rds_source.add_refresh_listener(warm)
 
 
 def suggest(q: str, limit: int = 10, per_type: int = 5) -> list[dict]:

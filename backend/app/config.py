@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     # RDS credentials are read from this .env file at connection time (see rds_source.py), never
     # stored here. Its content, not this path, is sensitive.
     rds_env_path: str = str(Path(__file__).resolve().parents[2] / ".env")
-    rds_cache_ttl_seconds: int = 1800  # how long to reuse a built RDS index before re-querying
+    rds_cache_ttl_seconds: int = 1800  # how long before a built RDS index is refreshed (in the background)
+    warm_caches_on_startup: bool = True  # load the data + build search caches at startup, not on the first search
     # Branch list used only to look up Mobile No (optional: if missing, Mobile No is "Not Available").
     # Transport master/status list (see app/services/transport_status.py). Unlisted transporters get the default.
     # Lives inside this project (parents[2] = "Transport Finder"), unlike excel_path/vacalvers_csv_path/

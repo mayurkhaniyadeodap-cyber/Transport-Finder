@@ -72,7 +72,11 @@ missing). To force the CSV instead of RDS, set `DATA_SOURCE=vacalvers_csv` expli
   address (comma-separated, or unusually long) rather than a city name, since that field is free text and sometimes
   holds an address — the pincode/state/transporter are still searchable.
 - Query result is cached (`backend/.cache/rds_index.json`) for `RDS_CACHE_TTL_SECONDS`, since `orders` has ~2.4M rows;
-  a single aggregate query (a few seconds) rebuilds it, not one query per search.
+  a single aggregate query (a few seconds) rebuilds it, not one query per search. When it expires, searches keep
+  using the previous snapshot while one background thread re-queries the RDS and swaps the new data in, so no
+  search waits for the RDS. If that refresh fails, the previous snapshot keeps being served (retried after 2 minutes).
+  At startup the data is loaded and the search caches are built in the background (`Search caches ready in …s`
+  in the log), so the first user doesn't pay for it.
 - Active/Not Active and the default pincode work identically to the other sources.
 
 ## Quick start
@@ -588,7 +592,8 @@ server starts from; see `.env.example`). Real environment variables win over the
 | `RDS_ENV_PATH` | project root `.env` | File holding `DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASSWORD`/`DB_NAME` for `DATA_SOURCE=rds` |
 | `DEFAULT_PAGE_SIZE` | `50` | Rows per page when `page_size` isn't given |
 | `MAX_PAGE_SIZE` | `200` | Largest `page_size` the API accepts (a larger value is rejected, not clamped) |
-| `RDS_CACHE_TTL_SECONDS` | `1800` | How long an RDS-built index is reused before re-querying |
+| `RDS_CACHE_TTL_SECONDS` | `1800` | How long an RDS-built index is reused before it's re-queried (in the background) |
+| `WARM_CACHES_ON_STARTUP` | `true` | Load the data and build the search caches at startup instead of on the first search |
 | `VACALVERS_CSV_PATH` | `..\L135 Orders 01.09.26 to 30.09.26.csv` | VaCalvers order export |
 | `EXCEL_PATH` | `..\DAILY DISPATCH SHEET.xlsx` | Dispatch workbook (only used when `DATA_SOURCE=excel`) |
 | `BRANCHES_CSV` | `..\Branches_LIST_20260926.csv` | Mobile No lookup file (optional; if missing, Mobile No is Not Available) |

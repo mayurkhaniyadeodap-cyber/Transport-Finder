@@ -16,6 +16,8 @@ def _isolated_overrides_db(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "overrides_db_path", str(tmp_path / "overrides.db"))
     # Likewise the real verified-logo folder: tests that want logos write their own.
     monkeypatch.setattr(settings, "transporter_logos_dir", str(tmp_path / "no_logos"))
+    # No background warm-up when a test runs startup: it would load the real data source mid-test.
+    monkeypatch.setattr(settings, "warm_caches_on_startup", False)
 
 
 @pytest.fixture(autouse=True)

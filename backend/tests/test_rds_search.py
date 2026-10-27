@@ -1,5 +1,8 @@
 """Tests the RDS-backed source with a fake pymysql connection — no real network/RDS access here.
 Live verification against the actual RDS is done separately (manual script), not in the test suite."""
+import threading
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -94,6 +97,8 @@ def rds_env(tmp_path, monkeypatch):
     monkeypatch.setattr(rds, "_stats", None)
     monkeypatch.setattr(rds, "_phonebook", None)
     monkeypatch.setattr(rds, "_built_at", 0.0)
+    monkeypatch.setattr(rds, "_refreshing", False)
+    monkeypatch.setattr(rds, "_next_attempt", 0.0)
     monkeypatch.setattr(rds, "_connect", lambda env_path: fake_index())
     # This file tests the RDS source/search pipeline, not transporter_filter (which has its own
     # dedicated tests in test_transporter_filter.py) — bypass it here so "does this transporter
@@ -227,6 +232,49 @@ def test_stats(rds_env):
     # two rows (380009 and 360001)
     assert stats.unique_records == len(entries) == 8
     assert stats.duplicate_rows_removed >= 1  # the TCI EXPRESS/tci express collapse
+
+
+def _join_refresh_thread():
+    for t in threading.enumerate():
+        if t.name == "rds-refresh":
+            t.join(timeout=10)
+
+
+def test_index_is_built_once_not_per_request(rds_env):
+    first = rds.get_index(None, settings.rds_env_path, 1800)
+    assert rds.get_index(None, settings.rds_env_path, 1800) is first
+
+
+def test_expired_snapshot_is_served_while_refreshing_in_background(rds_env, monkeypatch):
+    get(pincode="360003")  # first build (synchronous: nothing to serve yet)
+    release = threading.Event()
+    newer = COMBOS + [("Rajkot", "Gujarat", "360003", "NEW CARRIER", 1)]
+
+    def slow_connect(env_path):
+        release.wait(10)  # the RDS query is slow; no search may wait for it
+        return fake_index(combos=newer)
+
+    monkeypatch.setattr(rds, "_connect", slow_connect)
+    monkeypatch.setattr(rds, "_built_at", time.time() - 3600)  # past the 1800s TTL
+
+    assert "New Carrier" not in names(get(pincode="360003"))  # old data, answered immediately
+    release.set()
+    _join_refresh_thread()
+    assert "New Carrier" in names(get(pincode="360003"))  # the refresh swapped in the new data
+
+
+def test_failed_background_refresh_keeps_serving_old_data(rds_env, monkeypatch):
+    get(pincode="360003")
+
+    def down(env_path):
+        raise rds.RdsUnavailable("Could not connect to the RDS (OperationalError)")
+
+    monkeypatch.setattr(rds, "_connect", down)
+    monkeypatch.setattr(rds, "_built_at", time.time() - 3600)
+    assert "TCI Express" in names(get(pincode="360003"))
+    _join_refresh_thread()
+    assert "TCI Express" in names(get(pincode="360003"))  # still the RDS snapshot, not an error
+    assert rds._next_attempt > time.time()  # and no reconnect attempt on every request
 
 
 def test_numeric_city_is_not_shown_as_a_city_name(rds_env):

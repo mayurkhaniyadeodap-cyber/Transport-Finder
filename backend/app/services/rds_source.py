@@ -39,6 +39,8 @@ disagrees with its own state (see `excel_source.pincode_state_conflicts`), only 
 dropped — the order is still found by pincode/city search — so one bad state selection can't make an
 unrelated transporter appear in a state (or city+state) search for somewhere it never actually served.
 """
+import json
+import logging
 import re
 import threading
 import time
@@ -49,6 +51,8 @@ import pymysql
 from dotenv import dotenv_values
 
 from .excel_source import ACRONYMS, Entry, ExcelIndex, key, pincode_state_conflicts
+
+log = logging.getLogger(__name__)
 
 # Values seen in shipment_courier / couriers.name that are not transporter names.
 EXCLUDED_TRANSPORTS = {
@@ -195,52 +199,113 @@ _entries: list[Entry] | None = None
 _stats: IndexStats | None = None
 _phonebook: dict[str, str] | None = None
 _built_at: float = 0.0
+_index: ExcelIndex | None = None  # built once per _entries list, not once per request
+
+# Stale-while-revalidate: once there is data, an expired snapshot keeps being served while ONE
+# background thread re-queries the RDS (the aggregate over ~2.4M orders takes seconds), so no
+# search ever waits for it. Only the very first build in a process, with no data at all, blocks.
+REFRESH_RETRY_SECONDS = 120  # after a failed background refresh, keep the old data this long
+_refreshing = False
+_next_attempt: float = 0.0
+_refresh_listeners: list = []  # called (no args, background thread) after each background refresh
+
+
+def add_refresh_listener(fn) -> None:
+    """`fn()` runs after a background refresh swaps in new data, e.g. to pre-build caches that
+    depend on it so the next search doesn't pay for that either."""
+    _refresh_listeners.append(fn)
+
+
+def _cache_file(cache_dir: Path | None) -> Path | None:
+    return (cache_dir / "rds_index.json") if cache_dir else None
+
+
+def _read_cache_file(cache_file: Path | None):
+    """(entries, stats, phonebook, built_at) from the JSON snapshot, whatever its age; else None."""
+    if not (cache_file and cache_file.is_file()):
+        return None
+    try:
+        blob = json.loads(cache_file.read_text(encoding="utf-8"))
+        return ([Entry(*row) for row in blob["entries"]], IndexStats(**blob["stats"]), blob["phonebook"],
+                blob["built_at"])
+    except (ValueError, TypeError, KeyError, OSError):
+        return None
+
+
+def _query_rds(cache_file: Path | None, env_path: str):
+    """One read-only round trip: the aggregate + phonebook, also written to the JSON snapshot."""
+    conn = _connect(env_path)
+    try:
+        entries, stats = _fetch_entries_and_stats(conn)
+        phonebook = _fetch_phonebook(conn)
+    finally:
+        conn.close()
+    built_at = time.time()
+    if cache_file:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache_file.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps({
+                "built_at": built_at,
+                "entries": [list(vars(e).values()) for e in entries],
+                "stats": vars(stats),
+                "phonebook": phonebook,
+            }),
+            encoding="utf-8",
+        )
+        tmp.replace(cache_file)  # atomic, so a restart mid-write never reads half a file
+    return entries, stats, phonebook, built_at
+
+
+def _background_refresh(cache_file: Path | None, env_path: str) -> None:
+    global _entries, _stats, _phonebook, _built_at, _refreshing, _next_attempt
+    try:
+        built = _query_rds(cache_file, env_path)
+    except Exception as exc:  # RdsUnavailable or a query error: keep serving the old snapshot
+        log.warning("Background RDS refresh failed (%s); still serving the previous snapshot.", exc)
+        with _lock:
+            _refreshing, _next_attempt = False, time.time() + REFRESH_RETRY_SECONDS
+        return
+    with _lock:
+        _entries, _stats, _phonebook, _built_at = built
+        _refreshing = False
+    for fn in list(_refresh_listeners):
+        try:
+            fn()
+        except Exception:
+            log.exception("RDS refresh listener failed")
 
 
 def _ensure_built(cache_dir: Path | None, env_path: str, ttl_seconds: int) -> None:
-    global _entries, _stats, _phonebook, _built_at
+    global _entries, _stats, _phonebook, _built_at, _refreshing
     with _lock:
-        if _entries is not None and (time.time() - _built_at) < ttl_seconds:
+        now = time.time()
+        if _entries is not None and (now - _built_at) < ttl_seconds:
             return
-        cache_file = (cache_dir / "rds_index.json") if cache_dir else None
-        if cache_file and cache_file.is_file():
-            import json
-            try:
-                blob = json.loads(cache_file.read_text(encoding="utf-8"))
-                if (time.time() - blob["built_at"]) < ttl_seconds:
-                    _entries = [Entry(*row) for row in blob["entries"]]
-                    _stats = IndexStats(**blob["stats"])
-                    _phonebook = blob["phonebook"]
-                    _built_at = blob["built_at"]
+        cache_file = _cache_file(cache_dir)
+        if _entries is None:
+            cached = _read_cache_file(cache_file)
+            if cached is not None:
+                _entries, _stats, _phonebook, _built_at = cached
+                if (now - _built_at) < ttl_seconds:
                     return
-            except (ValueError, TypeError, KeyError, OSError):
-                pass
-
-        conn = _connect(env_path)
-        try:
-            entries, stats = _fetch_entries_and_stats(conn)
-            phonebook = _fetch_phonebook(conn)
-        finally:
-            conn.close()
-
-        _entries, _stats, _phonebook, _built_at = entries, stats, phonebook, time.time()
-        if cache_file:
-            import json
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            cache_file.write_text(
-                json.dumps({
-                    "built_at": _built_at,
-                    "entries": [list(vars(e).values()) for e in entries],
-                    "stats": vars(stats),
-                    "phonebook": phonebook,
-                }),
-                encoding="utf-8",
-            )
+        if _entries is not None:  # stale: serve it now, refresh behind the scenes
+            if not _refreshing and now >= _next_attempt:
+                _refreshing = True
+                threading.Thread(target=_background_refresh, args=(cache_file, env_path),
+                                 name="rds-refresh", daemon=True).start()
+            return
+        # Nothing to serve yet: this first build has to wait (RdsUnavailable -> CSV fallback upstream).
+        _entries, _stats, _phonebook, _built_at = _query_rds(cache_file, env_path)
 
 
 def get_index(cache_dir: Path | None, env_path: str, ttl_seconds: int) -> ExcelIndex:
+    global _index
     _ensure_built(cache_dir, env_path, ttl_seconds)
-    return ExcelIndex(_entries)
+    entries = _entries
+    if _index is None or _index.entries is not entries:
+        _index = ExcelIndex(entries)
+    return _index
 
 
 def get_phonebook(cache_dir: Path | None, env_path: str, ttl_seconds: int) -> dict[str, str]:
