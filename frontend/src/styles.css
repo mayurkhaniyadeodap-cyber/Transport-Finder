@@ -233,6 +233,12 @@ td .status { margin-left: 0; }
 .data .badges { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
 .data .panel-row td { background: var(--bg); }
 .data .panel-row:hover td { background: var(--bg); }
+/* Clickable results: the whole row/card opens the profile; the name itself is the keyboard target */
+.data tr.clickable { cursor: pointer; }
+.result.clickable { cursor: pointer; }
+.result.clickable:hover { border-color: var(--accent); }
+.namebtn { border: 0; background: transparent; padding: 0; font: inherit; font-weight: 700; color: var(--text); text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.data tr.clickable:hover .namebtn, .result.clickable:hover .namebtn, .namebtn:hover { color: var(--accent); }
 /* The search List: heading of each column shown as a small label above its value, like the design */
 .list-table td { padding: 14px; }
 .list-table td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }

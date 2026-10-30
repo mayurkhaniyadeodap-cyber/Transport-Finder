@@ -26,15 +26,21 @@ describe("View Profile buttons", () => {
     const onView = vi.fn();
     const r = row();
     render(<SearchResults data={data(r)} page={1} onPageChange={noop} view="cards" onViewChange={noop} onViewDetails={onView} />);
-    fireEvent.click(screen.getByRole("button", { name: /View profile/ }));
+    fireEvent.click(screen.getByRole("heading", { name: "Abhisek Travels" }).closest("article")!); // anywhere on the card
     expect(onView).toHaveBeenCalledWith(r);
+    expect(onView).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Abhisek Travels" })); // the name, for the keyboard
+    expect(onView).toHaveBeenCalledTimes(2);
   });
 
-  it("every table row has a View Profile button too", () => {
+  it("clicking anywhere on a List row opens that transporter too, and there is no separate View column", () => {
     const onView = vi.fn();
     render(<SearchResults data={data(row())} page={1} onPageChange={noop} view="table" onViewChange={noop} onViewDetails={onView} />);
-    fireEvent.click(screen.getByRole("button", { name: "View profile" }));
+    fireEvent.click(screen.getByText("9624203797")); // a plain cell
     expect(onView).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Abhisek Travels" }));
+    expect(onView).toHaveBeenCalledTimes(2); // the name button doesn't fire the row twice
+    expect(screen.queryByRole("button", { name: /View/ })).toBeNull();
   });
 
   it("result cards and the table don't show a Location", () => {

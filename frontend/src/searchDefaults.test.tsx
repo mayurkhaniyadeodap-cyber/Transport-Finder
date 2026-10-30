@@ -57,7 +57,7 @@ describe("results table Status column", () => {
     const html = render(data([row({ status: "Active" })]));
     const heads = [...html.matchAll(/<th[^>]*>(.*?)<\/th>/g)].map((m) => m[1].replace(/<[^>]+>/g, ""));
     expect(heads).toEqual([
-      "Transporter", "Type", "Mobile", "Service Cities", "Pincodes", "Charge / box", "Status", "Actions",
+      "Transporter", "Type", "Mobile", "Service Cities", "Pincodes", "Charge / box", "Status",
     ]);
   });
 

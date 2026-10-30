@@ -57,11 +57,14 @@ function ResultCard({ row, onViewDetails }: { row: TransportResult; onViewDetail
   const pins = splitPincodes(row.pincode);
   const charge = formatCharge(row.shipment_charge);
   return (
-    <article className="result">
+    // The whole card opens the profile; the name is a real button so it works from the keyboard too.
+    <article className="result clickable" onClick={() => onViewDetails(row)}>
       <div className="resulttop">
         <Avatar name={row.transport_name} photoUrl={row.photo_url} />
         <div>
-          <h3 className="rname" title={row.transport_name}>{row.transport_name}</h3>
+          <h3 className="rname" title={row.transport_name}>
+            <button type="button" className="namebtn" onClick={(e) => { e.stopPropagation(); onViewDetails(row); }}>{row.transport_name}</button>
+          </h3>
           <div className="rmeta">
             {cities.length} service {cities.length === 1 ? "city" : "cities"} · {pins.length} pincode{pins.length === 1 ? "" : "s"}
           </div>
@@ -91,9 +94,7 @@ function ResultCard({ row, onViewDetails }: { row: TransportResult; onViewDetail
       </dl>
       <div className="resultbottom">
         <span className="charge">From order history</span>
-        <button type="button" className="linkbtn" onClick={() => onViewDetails(row)}>
-          View profile ↗
-        </button>
+        <span className="linkbtn" aria-hidden="true">View profile ↗</span>
       </div>
     </article>
   );
@@ -161,16 +162,16 @@ export default function SearchResults({ data, page, onPageChange, view, onViewCh
                 <th scope="col">Pincodes</th>
                 <th scope="col">Charge / box</th>
                 <th scope="col">Status</th>
-                <th scope="col"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
               {results.map((r, i) => (
-                <tr key={`${r.city}-${r.transport_name}-${r.pincode}-${i}`}>
+                // Click anywhere on the row to open the profile (the name is a button for the keyboard)
+                <tr key={`${r.city}-${r.transport_name}-${r.pincode}-${i}`} className="clickable" onClick={() => onViewDetails(r)}>
                   <td>
                     <span className="namecell">
                       <Avatar name={r.transport_name} size="sm" photoUrl={r.photo_url} />
-                      <b>{r.transport_name}</b>
+                      <button type="button" className="namebtn" onClick={(e) => { e.stopPropagation(); onViewDetails(r); }}>{r.transport_name}</button>
                     </span>
                   </td>
                   <td className="nowrap" data-label="Type"><TypeChip name={r.transport_name} /></td>
@@ -179,11 +180,6 @@ export default function SearchResults({ data, page, onPageChange, view, onViewCh
                   <td className="mono" data-label="Pincodes"><PincodeSummary pins={splitPincodes(r.pincode)} /></td>
                   <td className="nowrap" data-label="Charge / box">{formatCharge(r.shipment_charge) ?? <span className="na">{NA}</span>}</td>
                   <td data-label="Status"><StatusBadge status={r.status} /></td>
-                  <td className="actions-cell">
-                    <button type="button" className="linkbtn" aria-label="View profile" onClick={() => onViewDetails(r)}>
-                      View →
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
