@@ -69,7 +69,6 @@ export default function Sidebar({ view, isAdmin, loginId, onNavigate }: Props) {
             <span>{isAdmin ? "Administrator" : "Standard user"}</span>
           </div>
         </div>
-        <p>Internal tool · DeoDap</p>
       </div>
     </aside>
   );
