@@ -1,7 +1,9 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { MAX_PHOTO_BYTES, OverrideStatus, PHOTO_TYPES } from "../services/overridesApi";
-import { AlertIcon, CheckCircleIcon, PencilIcon, PlusIcon, TrashIcon, XIcon } from "./Icons";
-import { Avatar, TransporterPhoto, TypeChip } from "./ui";
+import { deriveTransportType } from "../searchDefaults";
+import { AlertIcon, TrashIcon } from "./Icons";
+import { ModalHead } from "./Modal";
+import { Avatar, TransporterPhoto } from "./ui";
 
 export interface TransporterFormValues {
   name: string;
@@ -13,7 +15,7 @@ export interface TransporterFormValues {
   photo_url?: string | null; // the current image (initial values only)
   photo_source?: "admin" | "official" | null; // where that image comes from
   photo?: File | null; // on save: a new photo to upload, null to remove it, undefined = unchanged
-  shipment_charge?: string; // Edit only: approx. charge per box in rupees, "" = not set
+  shipment_charge?: string; // approx. charge per box in rupees, "" = not set
 }
 
 /** Same rule as the server: rupees with up to 2 decimals ("45", "75.50"); a leading ₹ or commas are fine. */
@@ -42,7 +44,7 @@ export function parseList(text: string, caseInsensitive = true): string[] {
   return [...seen.values()];
 }
 
-/** Manage Transporters' Edit and Add form: every transporter-level field. */
+/** Manage Transporters' Add and Edit form: every transporter-level field. */
 export default function TransporterForm({ mode, initial, saving, serverError, onSave, onCancel }: Props) {
   const [name, setName] = useState(initial.name);
   const [cities, setCities] = useState(initial.service_cities.join(", "));
@@ -102,174 +104,131 @@ export default function TransporterForm({ mode, initial, saving, serverError, on
     onSave({
       name: name.trim().replace(/\s+/g, " "), service_cities: cityList, pincodes: pinList, mobile: mobile.trim(), status, hidden,
       photo: photoFile ?? (photoRemoved ? null : undefined),
-      ...(isAdd ? {} : { shipment_charge: cleanedCharge }),
+      shipment_charge: cleanedCharge,
     });
   };
 
   const shownError = error || serverError;
 
   return (
-    <form className="modal-form transporter-form" onSubmit={submit} noValidate>
-      <header className="modal-head">
-        <span className={`modal-head-icon ${isAdd ? "tone-violet" : "tone-blue"}`}>
-          {isAdd ? <PlusIcon size={20} /> : <PencilIcon size={20} />}
-        </span>
-        <div className="modal-head-text">
-          <h3>{isAdd ? "Add Transporter" : "Edit transporter"}</h3>
-          <p>
-            {isAdd
-              ? "Added and shown locally. Not backed by a real order."
-              : "Changes apply to every row of this transporter and show in Search right away."}
-          </p>
-        </div>
-        <button type="button" className="icon-btn icon-btn-ghost" aria-label="Close" onClick={onCancel}>
-          <XIcon size={18} />
-        </button>
-      </header>
+    <form onSubmit={submit} noValidate>
+      <ModalHead
+        title={isAdd ? "Add transporter" : "Edit transporter"}
+        sub={isAdd
+          ? "Added and shown locally. Not backed by a real order."
+          : "Changes apply to every row of this transporter and show in Search right away."}
+        onClose={onCancel}
+      />
 
-      <div className="modal-body">
-        {!isAdd && (
-          <div className="source-summary">
-            <span aria-hidden="true">{/* the image field below is the accessible one */}
-              <Avatar name={initial.name} size="sm" photoUrl={initial.photo_url} />
+      {!isAdd && (
+        <div className="source-summary">
+          <span aria-hidden="true">{/* the image field below is the accessible one */}
+            <Avatar name={initial.name} size="sm" photoUrl={initial.photo_url} />
+          </span>
+          <div>
+            <b className="source-summary-name">{initial.name}</b>
+            <span>
+              {initial.service_cities.length} service {initial.service_cities.length === 1 ? "city" : "cities"} ·{" "}
+              {initial.pincodes.length} pincode{initial.pincodes.length === 1 ? "" : "s"}
             </span>
-            <div>
-              <p className="source-summary-name">{initial.name}</p>
-              <p className="source-summary-meta">
-                {initial.service_cities.length} service {initial.service_cities.length === 1 ? "city" : "cities"} ·{" "}
-                {initial.pincodes.length} pincode{initial.pincodes.length === 1 ? "" : "s"}
-              </p>
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <fieldset className="form-section">
-          <legend>Transporter image</legend>
+      <div className="formgrid">
+        <div className="field">
+          <label htmlFor="tf-name">Transporter name <span className="req">*</span></label>
+          <input id="tf-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. TCI Express" autoFocus />
+        </div>
+        <div className="field">
+          <span className="label">Transport type · from the name</span>
+          <input value={name.trim() ? deriveTransportType(name) : "—"} disabled aria-label="Transport type (from the name)" />
+        </div>
+        <div className="field">
+          <label htmlFor="tf-cities">Service cities (comma separated) <span className="count">{cityList.length}</span></label>
+          <textarea id="tf-cities" rows={3} value={cities} onChange={(e) => setCities(e.target.value)} placeholder="e.g. Mumbai, Pune, Thane" />
+        </div>
+        <div className="field">
+          <label htmlFor="tf-pins">Pincodes (comma separated) <span className="count">{pinList.length}</span></label>
+          <textarea id="tf-pins" className="mono" rows={3} value={pincodes} onChange={(e) => setPincodes(e.target.value)}
+                    placeholder="e.g. 400001, 411001" inputMode="numeric" />
+        </div>
+        <div className="field">
+          <label htmlFor="tf-mobile">Mobile number</label>
+          <input id="tf-mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="10-digit mobile" inputMode="tel" />
+        </div>
+        <div className="field">
+          <label htmlFor="shipment-charge">Approx. Shipment Charge / 1 Box (₹)</label>
+          <span className="prefix-wrap">
+            <span aria-hidden="true">₹</span>
+            <input id="shipment-charge" value={charge} onChange={(e) => setCharge(e.target.value)} placeholder="e.g. 75.50"
+                   inputMode="decimal" aria-describedby="shipment-charge-hint" />
+          </span>
+          <span className="hint" id="shipment-charge-hint">Entered by the Admin. Leave empty if not known.</span>
+        </div>
+        <div className="field">
+          <label htmlFor="tf-status">Status</label>
+          <select id="tf-status" value={status} onChange={(e) => setStatus(e.target.value as OverrideStatus)}>
+            <option value="Active">Active</option>
+            <option value="Not Active">Not Active</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="tf-visibility">Visibility</label>
+          <select id="tf-visibility" value={hidden ? "hidden" : "visible"} onChange={(e) => setHidden(e.target.value === "hidden")}>
+            <option value="visible">Visible</option>
+            <option value="hidden">Hidden</option>
+          </select>
+        </div>
+        <div className="field full">
+          <span className="label">Logo / photo upload</span>
           <div className="photo-field">
             {previewUrl ? (
-              <img className="transporter-photo photo-field-preview" src={previewUrl} alt="New image preview" />
+              <img className="logo lg" src={previewUrl} alt="New image preview" />
             ) : (
-              <TransporterPhoto name={name || "Transporter"} photoUrl={photoFile ? null : currentPhoto} className="photo-field-preview" />
+              <TransporterPhoto name={name || "Transporter"} photoUrl={photoFile ? null : currentPhoto} className="lg" />
             )}
             <div className="photo-field-actions">
-              <label className="btn btn-outline btn-sm photo-upload">
-                <input type="file" accept={PHOTO_TYPES.join(",")} className="sr-only" onChange={pickPhoto} />
-                {hasPhoto ? "Replace image" : "Upload image"}
-              </label>
-              {canRemove && (
-                <button type="button" className="btn btn-sm photo-remove" onClick={removePhoto}>
-                  <TrashIcon size={14} /> Remove image
-                </button>
-              )}
+              <div>
+                <label className="btn secondary sm upload-btn">
+                  <input type="file" accept={PHOTO_TYPES.join(",")} onChange={pickPhoto} aria-label={hasPhoto ? "Replace image" : "Upload image"} />
+                  {hasPhoto ? "Replace image" : "Upload image"}
+                </label>
+                {canRemove && (
+                  <button type="button" className="btn danger sm" onClick={removePhoto}>
+                    <TrashIcon size={14} /> Remove image
+                  </button>
+                )}
+              </div>
               <p className="hint">
                 {photoFile
-                  ? `Selected: ${photoFile.name} — saved when you click ${isAdd ? "Add Transporter" : "Save"}.`
+                  ? `Selected: ${photoFile.name} — saved when you click ${isAdd ? "Add transporter" : "Save transporter"}.`
                   : photoRemoved
                     ? official
                       ? "Your upload will be removed when you save; the official company logo will show again."
                       : "The image will be removed when you save."
                     : currentPhoto === official && official
                       ? "Showing the official company logo. Upload the company's own image to replace it if it's wrong."
-                      : "Use the company's official logo or photo — JPEG, PNG or WebP, up to 2 MB. Shown on search results and the profile."}
+                      : "Use the company's official logo or photo — JPEG, PNG or WebP, up to 2 MB."}
               </p>
             </div>
           </div>
-        </fieldset>
-
-        <fieldset className="form-section">
-          <legend>Transporter</legend>
-          <div className="form-grid">
-            <label className="field">
-              <span className="field-label">
-                Transporter Name <span className="req">*</span>
-              </span>
-              <input className="edit-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Abhisek Travels" autoFocus />
-            </label>
-            <div className="field">
-              <span className="field-label">Transport type · from the name</span>
-              <div className="readonly-box">{name.trim() ? <TypeChip name={name} /> : <span className="na">—</span>}</div>
-            </div>
-          </div>
-        </fieldset>
-
-        <fieldset className="form-section">
-          <legend>Coverage</legend>
-          <div className="form-stack">
-            <label className="field">
-              <span className="field-label">
-                Service Cities <span className="field-count">{cityList.length}</span>
-              </span>
-              <textarea className="edit-input" rows={3} value={cities} onChange={(e) => setCities(e.target.value)}
-                        placeholder="e.g. Mumbai, Pune, Thane" />
-            </label>
-            <label className="field">
-              <span className="field-label">
-                Pincode(s) <span className="field-count">{pinList.length}</span>
-              </span>
-              <textarea className="edit-input mono" rows={3} value={pincodes} onChange={(e) => setPincodes(e.target.value)}
-                        placeholder="e.g. 400001, 411001" inputMode="numeric" />
-            </label>
-            <p className="hint">Separate with commas or new lines. Search matches exactly these cities and pincodes.</p>
-          </div>
-        </fieldset>
-
-        <fieldset className="form-section">
-          <legend>Contact &amp; status</legend>
-          <div className="form-grid">
-            <label className="field">
-              <span className="field-label">Mobile Number</span>
-              <input className="edit-input" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="e.g. 9876543210"
-                     inputMode="tel" />
-            </label>
-            <label className="field">
-              <span className="field-label">Status</span>
-              <select className="edit-input" value={status} onChange={(e) => setStatus(e.target.value as OverrideStatus)}>
-                <option value="Active">Active</option>
-                <option value="Not Active">Not Active</option>
-              </select>
-            </label>
-            {!isAdd && (
-              <div className="field">
-                <label className="field-label" htmlFor="shipment-charge">Approx. Shipment Charge / 1 Box (₹)</label>
-                <span className="input-prefix-wrap">
-                  <span className="input-prefix" aria-hidden="true">₹</span>
-                  <input id="shipment-charge" className="edit-input" value={charge} onChange={(e) => setCharge(e.target.value)}
-                         placeholder="e.g. 75.50" inputMode="decimal" aria-describedby="shipment-charge-hint" />
-                </span>
-                <span className="hint" id="shipment-charge-hint">Entered by the Admin. Leave empty if not known.</span>
-              </div>
-            )}
-          </div>
-        </fieldset>
-
-        {!isAdd && (
-          <label className="switch-row">
-            <span className="switch-text">
-              <span className="switch-title">Hide from search</span>
-              <span className="switch-sub">It stays here in Manage Transporters so you can show it again.</span>
-            </span>
-            <input type="checkbox" role="switch" className="switch-input" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
-            <span className="switch" aria-hidden="true" />
-          </label>
-        )}
-
-        {shownError && (
-          <div className="alert alert-error" role="alert">
-            <AlertIcon size={16} />
-            <span>{shownError}</span>
-          </div>
-        )}
+        </div>
       </div>
 
-      <footer className="modal-foot">
-        <button type="button" className="btn btn-outline" onClick={onCancel} disabled={saving}>
-          Cancel
+      {shownError && (
+        <div className="alert error" role="alert">
+          <AlertIcon size={16} />
+          <span>{shownError}</span>
+        </div>
+      )}
+
+      <div className="actions">
+        <button type="button" className="ghost" onClick={onCancel} disabled={saving}>Cancel</button>
+        <button type="submit" className="btn" disabled={saving}>
+          {saving ? "Saving…" : isAdd ? "Add transporter" : "Save transporter"}
         </button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>
-          <CheckCircleIcon size={16} />
-          {saving ? "Saving…" : isAdd ? "Add Transporter" : "Save"}
-        </button>
-      </footer>
+      </div>
     </form>
   );
 }

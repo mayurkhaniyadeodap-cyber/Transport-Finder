@@ -15,6 +15,8 @@ export interface FakeBackend {
   users: FakeUser[];
   preferences: { default_pincode: string; default_search_type: string; results_per_page: number };
   sessions: Map<string, { role: "admin" | "user"; userId?: number }>;
+  activity: { id: number; created_at: string; role: string; login_id: string | null; kind: string; event: string;
+              detail: string | null; ip: string }[];
   calls: (path: string) => { url: string; init?: RequestInit }[];
   user: (loginId: string) => FakeUser | undefined;
 }
@@ -31,6 +33,7 @@ export function installFakeBackend(): FakeBackend {
     users: [{ id: 1, login_id: "User_deodap@123", password: "User@123", active: true }],
     preferences: { default_pincode: "", default_search_type: "auto", results_per_page: 50 },
     sessions: new Map(),
+    activity: [],
     calls: (path) => fb.fetch.mock.calls.filter(([u]) => String(u).startsWith(path)).map(([url, init]) => ({ url: String(url), init })),
     user: (loginId) => fb.users.find((u) => u.login_id === loginId),
   };
@@ -107,6 +110,23 @@ export function installFakeBackend(): FakeBackend {
         if (body.active !== undefined) u.active = body.active;
         return json(200, out(u));
       }
+    }
+    if (url.startsWith("/api/activity")) {
+      if (!session) return json(401, { detail: "Your session has expired. Please log in again." });
+      const actor = session.role === "admin" ? fb.admin.login_id : me?.login_id ?? null;
+      if (method === "POST") {
+        const events = { panel_open: ["session", "Panel opened"], search: ["search", "Search performed"], profile_view: ["profile", "Transporter profile viewed"] };
+        const [kind, event] = events[body.type as keyof typeof events];
+        fb.activity.unshift({ id: fb.activity.length + 1, created_at: "2026-10-30T08:00:00+00:00", role: session.role, login_id: actor,
+                              kind, event, detail: body.detail ?? null, ip: "127.0.0.1" });
+        return json(201, { ok: true });
+      }
+      const mine = session.role === "admin" ? fb.activity : fb.activity.filter((e) => e.login_id === actor);
+      return json(200, {
+        results: mine, total: mine.length,
+        today: { events: mine.length, panel_opens: mine.filter((e) => e.event === "Panel opened").length,
+                 searches: mine.filter((e) => e.kind === "search").length },
+      });
     }
     if (url.startsWith("/api/manage/")) return json(200, { results: [], total: 0, deleted: [] });
     if (url.startsWith("/api/transport/search")) {

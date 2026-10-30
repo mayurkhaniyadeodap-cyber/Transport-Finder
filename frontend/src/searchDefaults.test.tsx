@@ -53,24 +53,24 @@ describe("results table Status column", () => {
       <SearchResults data={d} page={page} onPageChange={noop} view="table" onViewChange={noop} onViewDetails={noop} />,
     );
 
-  it("table view includes City/Transport/Mobile/Pincode/Status, plus Transport Type and Actions", () => {
+  it("table view includes Transporter/Type/Mobile/Service Cities/Pincodes/Charge/Status, plus Actions", () => {
     const html = render(data([row({ status: "Active" })]));
-    const heads = [...html.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+    const heads = [...html.matchAll(/<th[^>]*>(.*?)<\/th>/g)].map((m) => m[1].replace(/<[^>]+>/g, ""));
     expect(heads).toEqual([
-      "#", "Transporter", "Service Cities", "Pincode", "Mobile", "Status", "Transport Type", "Actions",
+      "Transporter", "Type", "Mobile", "Service Cities", "Pincodes", "Charge / box", "Status", "Actions",
     ]);
   });
 
   it("shows an Active badge, and Not Available for a missing mobile number", () => {
     const html = render(data([row({ status: "Active" })]));
-    expect(html).toMatch(/<span class="badge badge-active">Active<\/span>/);
+    expect(html).toMatch(/<span class="status">Active<\/span>/);
     expect(html).toContain("Not Available");
     expect(html).not.toContain("Order Count");
   });
 
   it("still renders a Not Active badge if the API ever returns one", () => {
     const html = render(data([row({ status: "Not Active" })]));
-    expect(html).toMatch(/<span class="badge badge-inactive">Not Active<\/span>/);
+    expect(html).toMatch(/<span class="status off">Not Active<\/span>/);
   });
 
   it("renders a verified mobile number as returned by the API", () => {

@@ -19,9 +19,9 @@ Transport Finder/
 └── requirements.txt   the only Python requirements file
 ```
 
-Sign-in is required: a demo Admin/User login gates the app (frontend-only, no backend auth system —
-see [Login & sessions](#login--sessions)). Admin can reach **Manage Transporters**; User can only
-search.
+Sign-in is required and checked by the backend (see [Login & sessions](#login--sessions)). Admin can
+reach **Manage transporters** and User Management; User can search. Both have Settings and an
+**Activity log** (the Admin sees everyone's activity, a User their own).
 
 ## Data sources (kept next to this folder, i.e. in `C:\wherehous_tool`)
 
@@ -575,10 +575,26 @@ doesn't render it for a User, and a guard resets the view to Search).
 | `PATCH /api/settings/users/{id}` | **Admin only**: any of `login_id` (change ID), `password` (reset), `active` (`404` unknown User) |
 | `DELETE /api/settings/users/{id}` | **Admin only**: delete a User and end their sessions |
 | `PUT /api/settings/preferences` | Save preferences — body: any of `default_pincode`, `default_search_type`, `results_per_page` (**Admin only**, `403` for a User) |
+| `GET /api/activity?limit=&offset=&kind=&q=` | Activity Log (any signed-in role): `{results, total, today: {events, panel_opens, searches}}`, newest first. The Admin gets everyone's entries, a User only their own. `kind` is `session`/`search`/`profile`/`admin`/`settings`; `q` searches event, detail and login ID |
+| `POST /api/activity` | The app reports an event — body: `type` (`panel_open`, `search` or `profile_view`) and optional `detail`. Anything else (Admin changes, sign-ins) is recorded by the server itself and can't be posted |
 
-The `/api/auth` and `/api/settings` endpoints check the session token on the server. The other
-endpoints are unchanged: the Admin/User split for Manage Transporters is enforced in the frontend (see
-[Login & sessions](#login--sessions)), and those endpoints are not authenticated, same as before.
+The `/api/auth`, `/api/settings` and `/api/activity` endpoints check the session token on the
+server, and every `/api/manage/*` and `/api/overrides/*` endpoint is Admin-only on the server (`401`
+without a session, `403` for a User). Search (`/api/transport/*`) stays open.
+
+### Activity Log
+Stored in the same local SQLite file as the rest of the Admin data (table `activity_log`; never the
+RDS), so the backup above covers it. Each entry has the date and time (UTC, shown in India time), the
+person's role and login ID *as it was then*, the event, a short detail and the client IP.
+
+- **Recorded by the server:** sign-in, failed sign-in (with the ID that was tried — never the
+  password), sign-out, every Admin change to transporters (add, edit — which fields — hide/unhide,
+  delete, restore, photo), row overrides, Users (add, change ID, reset password, activate/deactivate,
+  delete), search preferences, and a person changing their own ID or password.
+- **Reported by the app:** panel opened (once per sign-in or page load), each search (what was typed
+  and how many transporters it found), and each transporter profile viewed.
+- Recording never blocks the action itself: if the log can't be written, the action still succeeds
+  and the error is logged server-side. There is no way to delete entries from the app.
 
 ## Configuration
 
@@ -615,31 +631,37 @@ cd frontend && npm run build          # TypeScript check + production build
 
 ## Frontend notes
 
-The UI follows the `transport_finder_redesign.tsx` prototype, rebuilt in the app's own plain CSS
-(`src/styles.css`) and inline SVG icons (`src/components/Icons.tsx`) — no Tailwind or icon library.
-Shared pieces (avatar, type chip, status/override badges, numbered pagination, truck illustration)
-live in `src/components/ui.tsx`.
+The UI follows the approved **"Midnight Ops"** design: a dark control-room look by default (navy
+panels, amber for the numbers that matter — phone numbers and counts — cyan for secondary labels,
+monospace digits), with a light variant under Settings → Appearance. Built in the app's own plain
+CSS (`src/styles.css`, colour tokens on `:root`; `<html data-theme="light">` switches the palette)
+and inline SVG icons (`src/components/Icons.tsx`) — no Tailwind or UI library. Fonts: Space Grotesk,
+JetBrains Mono for digits (Google Fonts). Search results open in the dense **List** view (a real
+table whose column headings show as a small label above each value; it stacks on phones), with
+**Cards** as the alternative. Shared pieces (logo tile, type chip, status/override badges, numbered
+pagination) live in `src/components/ui.tsx`.
 
-- **Shell:** a navy **sidebar** (Menu: Search, plus Manage Transporters for Admin) and a top bar
-  with the page title and the account menu (Log out). Below 900px the same nav becomes a bottom tab
-  bar.
-- **Login:** a navy brand panel beside the sign-in card; Admin/User is a segmented switch.
-- **Search:** a navy hero with the single search box, Popular Searches and an "About the data" row.
-  Once a search runs, a compact sticky search bar with a back button replaces the hero. Loading
-  shows skeleton cards. A 6-digit value is sent as pincode; anything else is tried as city, then
-  state, then transporter name (`searchUnified()` in `src/searchDefaults.ts`), still just the one
-  existing search API.
-- **Results:** "N transporters found" with the matched place, stat tiles (Transporters / Active /
-  Phone available / Transport types — computed from the *whole* matching set by a capped background
-  fetch of the same search endpoint), then a **Cards** or **Table** view and numbered pagination.
-- **Transporter profile** (**View Profile** on every result card and table row; read-only for both
-  roles): a navy cover with the transporter's photo (or the default truck picture), name, location,
-  status and type; Call / Copy number when a mobile exists; an **Overview** tab (mobile, location,
-  service cities, pincodes, status, transport type) and a **Coverage** tab (every service city and
-  pincode); Copy information.
-- **Manage Transporters:** count tiles, the All Transporters table with name search and icon
-  actions (Edit / Hide–Unhide / Delete), Deleted transporters (Restore) and Current local overrides.
-  Add and Edit open a centered form (a bottom sheet on phones).
+- **Shell:** a white **sidebar** — Workspace: Find transport, Transporter profile, Manage
+  transporters (Admin only); Preferences: Settings, Activity log — with the signed-in ID at the
+  bottom; a top bar with the page title and breadcrumb, the Light/Dark toggle and the account menu
+  (Settings, Log out). Below 900px the same nav becomes a bottom tab bar.
+- **Login:** one centred card; Admin/User is a segmented switch, then Login ID and Password.
+- **Find transport:** page header, the single search box with autocomplete and Popular searches,
+  then results. A 6-digit value is sent as pincode; anything else is tried as city, then state, then
+  transporter name (`searchUnified()` in `src/searchDefaults.ts`), still just the one search API.
+- **Results:** "N transporters found for …", stat tiles (Transporters / Active / Phone available /
+  Transport types — computed from the *whole* matching set by a capped background fetch of the same
+  search endpoint), then **Cards** or **Table** and numbered pagination.
+- **Transporter profile** (**View profile** on every card and table row; read-only for both roles):
+  a page with the logo (click to enlarge), name, status and type; Call / Copy number / Copy
+  information; an **Overview** tab (mobile, charge, service cities, pincodes, status, type) and a
+  **Coverage** tab (every service city and pincode).
+- **Manage transporters:** count tiles (click to filter), the Transporter directory with name search
+  and Edit / Hide–Unhide / Delete, Recently deleted (Restore) and Current local overrides. Add and
+  Edit open a form dialog (a bottom sheet on phones); the Add form also takes the charge and
+  visibility, saved right after the transporter is added.
+- **Settings:** tabs — Account, Appearance, Search preferences, Security, User management (Admin).
+- **Activity log:** today's counts, then every entry with filters (type, text) and pagination.
 
 The "Transport Type" chip and the avatar colour are guessed client-side from keywords in the name
 (`deriveTransportType()`) — cosmetic only; the API has no such field. Everything else shown is

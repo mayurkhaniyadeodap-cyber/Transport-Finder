@@ -130,6 +130,23 @@ def _ensure_schema(conn: sqlite3.Connection, path: Path, existed: bool) -> list[
             updated_at TEXT NOT NULL
         )
     """)
+    # Activity Log (services/activity.py): who did what, and when. A new table, not a change to an
+    # existing one, so no migration backup is needed for it.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            role TEXT,
+            user_id INTEGER,
+            login_id TEXT,
+            kind TEXT NOT NULL,
+            event TEXT NOT NULL,
+            detail TEXT,
+            ip TEXT
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS activity_log_user ON activity_log (role, user_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS activity_log_created ON activity_log (created_at)")
     conn.commit()
     missing = []
     for table, added in _ADDED_COLUMNS.items():

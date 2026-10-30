@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CompactList, PincodeSummary } from "../components/CityList";
-import {
-  AlertIcon, CheckCircleIcon, ChevronDownIcon, EmptyIcon, EyeIcon, EyeOffIcon, InfoIcon, PencilIcon, PlusIcon, RotateCcwIcon,
-  SearchIcon, TrashIcon, TruckIcon, XIcon,
-} from "../components/Icons";
+import { AlertIcon, EmptyIcon, InfoIcon, PlusIcon, RotateCcwIcon, SearchIcon, XIcon } from "../components/Icons";
 import Modal from "../components/Modal";
 import { Avatar, OverrideBadge, OverrideKind, Pagination, StatusBadge } from "../components/ui";
 import { deriveTransportType } from "../searchDefaults";
@@ -25,7 +22,7 @@ type Editing =
 
 type StatusFilter = "all" | "active" | "inactive" | "hidden";
 const FILTER_LABEL: Record<StatusFilter, string> = {
-  all: "All Transporters", active: "Active transporters", inactive: "Not Active transporters", hidden: "Hidden transporters",
+  all: "Transporter directory", active: "Active transporters", inactive: "Not Active transporters", hidden: "Hidden transporters",
 };
 
 /** Case/spacing/punctuation-insensitive, like the backend's own name matching. */
@@ -42,8 +39,7 @@ export default function ManageTransporters() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
-  const allTransportersRef = useRef<HTMLElement | null>(null);
-  const [deletedOpen, setDeletedOpen] = useState(false);
+  const directoryRef = useRef<HTMLElement | null>(null);
 
   const [overrides, setOverrides] = useState<Override[] | null>(null);
   const [overridesError, setOverridesError] = useState<string | null>(null);
@@ -51,6 +47,13 @@ export default function ManageTransporters() {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const t = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const refresh = useCallback(() => {
     listManagedTransporters()
@@ -100,11 +103,12 @@ export default function ManageTransporters() {
     };
   }, [list]);
 
-  const run = async (action: () => Promise<unknown>) => {
+  const run = async (action: () => Promise<unknown>, done?: string) => {
     setActionError(null);
     try {
       await action();
       refresh();
+      if (done) setToast(done);
       return true;
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Could not save.");
@@ -112,14 +116,15 @@ export default function ManageTransporters() {
     }
   };
 
-  const toggleHidden = (t: ManagedTransporter) => run(() => updateTransporter(t.transport_name, { hidden: !t.hidden }));
+  const toggleHidden = (t: ManagedTransporter) =>
+    run(() => updateTransporter(t.transport_name, { hidden: !t.hidden }), t.hidden ? "Transporter unhidden" : "Transporter hidden");
 
   const remove = (t: ManagedTransporter) => {
     const ok = window.confirm(
       `Delete "${t.transport_name}"?\n\nIt will be removed from Search and from this list. ` +
-        "The real data source is not changed, and you can restore it from Deleted transporters.",
+        "The real data source is not changed, and you can restore it from Recently deleted.",
     );
-    if (ok) run(() => deleteTransporter(t.transport_name));
+    if (ok) run(() => deleteTransporter(t.transport_name), "Moved to Recently deleted");
   };
 
   const finish = (done: boolean) => {
@@ -142,8 +147,13 @@ export default function ManageTransporters() {
           transport_name: v.name, service_cities: v.service_cities, pincodes: v.pincodes,
           mobile: v.mobile || undefined, status: v.status,
         });
+        // Adding takes the core fields; a charge or "Hidden" set in the same form is saved right after.
+        const extra: TransporterSettings = {};
+        if (v.shipment_charge) extra.shipment_charge = v.shipment_charge;
+        if (v.hidden) extra.hidden = true;
+        if (Object.keys(extra).length) await updateTransporter(v.name, extra);
         await savePhoto(v.name, v.photo);
-      }));
+      }, "Transporter added"));
     }
     const t = editing.t;
     // Only what actually changed, so e.g. an untouched Mobile or pincode list isn't pinned as an override.
@@ -159,13 +169,13 @@ export default function ManageTransporters() {
     finish(await run(async () => {
       if (Object.keys(changes).length) await updateTransporter(t.transport_name, changes);
       await savePhoto(v.name, v.photo);
-    }));
+    }, "Transporter saved"));
   };
 
   const saveOverride = async (fields: OverrideFields) => {
     if (editing?.kind !== "override") return;
     setSaving(true);
-    finish(await run(() => updateOverride(editing.override.id, fields)));
+    finish(await run(() => updateOverride(editing.override.id, fields), "Override saved"));
   };
 
   const closeEditor = useCallback(() => setEditing(null), []);
@@ -196,7 +206,7 @@ export default function ManageTransporters() {
           ? { name: t.transport_name, service_cities: t.service_cities, pincodes: t.pincodes, mobile: t.mobile ?? "",
               status: t.status, hidden: t.hidden, photo_url: t.photo_url ?? null, photo_source: t.photo_source ?? null,
               shipment_charge: t.shipment_charge ?? "" }
-          : { name: "", service_cities: [], pincodes: [], mobile: "", status: "Active", hidden: false, photo_url: null }}
+          : { name: "", service_cities: [], pincodes: [], mobile: "", status: "Active", hidden: false, photo_url: null, shipment_charge: "" }}
         saving={saving}
         serverError={actionError}
         onSave={saveTransporter}
@@ -205,256 +215,225 @@ export default function ManageTransporters() {
     );
   };
 
-  const tiles: { label: string; value: number | undefined; icon: typeof TruckIcon; tone: string; filter: StatusFilter }[] = [
-    { label: "Transporters", value: list?.total, icon: TruckIcon, tone: "tone-blue", filter: "all" },
-    { label: "Active", value: list ? counts.active : undefined, icon: CheckCircleIcon, tone: "tone-green", filter: "active" },
-    { label: "Not Active", value: list ? counts.inactive : undefined, icon: AlertIcon, tone: "tone-red", filter: "inactive" },
-    { label: "Hidden", value: list ? counts.hidden : undefined, icon: EyeOffIcon, tone: "tone-slate", filter: "hidden" },
+  const tiles: { label: string; value: number | undefined; filter: StatusFilter; hint: string }[] = [
+    { label: "Transporters", value: list?.total, filter: "all", hint: "In the directory" },
+    { label: "Active", value: list ? counts.active : undefined, filter: "active", hint: "Shown in Search" },
+    { label: "Not Active", value: list ? counts.inactive : undefined, filter: "inactive", hint: "Left out of Search" },
+    { label: "Hidden", value: list ? counts.hidden : undefined, filter: "hidden", hint: "Hidden by an Admin" },
   ];
 
   const applyFilter = (f: StatusFilter) => {
     setStatusFilter(f);
     setPage(1);
-    allTransportersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    directoryRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   };
 
   return (
-    <div className="manage page-stack">
-      <div className="page-header">
+    <section>
+      <div className="pagehead">
         <div>
-          <h2>Manage Transporters</h2>
-          <p>Edit what Transport Finder shows. Changes are saved locally — the RDS data is never changed.</p>
+          <div className="eyebrow">Admin workspace</div>
+          <h1 className="h1">Manage transporters</h1>
+          <p className="sub">Maintain your transporter directory and visibility. Changes are saved locally — the RDS data is never changed.</p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => setEditing({ kind: "new" })}>
-          <PlusIcon size={16} /> Add Transporter
+        <button type="button" className="btn" onClick={() => setEditing({ kind: "new" })}>
+          <PlusIcon size={16} /> Add transporter
         </button>
       </div>
 
-      <div className="summary-tiles" role="group" aria-label="Filter transporters by status">
-        {tiles.map(({ label, value, icon: Icon, tone, filter }) => (
-          <button
-            key={label}
-            type="button"
-            className={`card tile tile-btn ${statusFilter === filter ? "active" : ""}`}
-            aria-pressed={statusFilter === filter}
-            onClick={() => applyFilter(filter)}
-          >
-            <span className={`tile-icon ${tone}`}>
-              <Icon size={20} />
-            </span>
-            <div>
-              <p className="tile-value">{value ?? "…"}</p>
-              <p className="tile-label">{label}</p>
-            </div>
+      <div className="grid4" role="group" aria-label="Filter transporters by status">
+        {tiles.map(({ label, value, filter, hint }) => (
+          <button key={label} type="button" className={`stat ${statusFilter === filter ? "active" : ""}`}
+                  aria-pressed={statusFilter === filter} onClick={() => applyFilter(filter)}>
+            <div className="label">{label}</div>
+            <div className="num">{value ?? "…"}</div>
+            <div className="hint">{hint}</div>
           </button>
         ))}
       </div>
 
       {actionError && !editing && (
-        <div className="alert alert-error" role="alert">
+        <div className="alert error" role="alert">
           <AlertIcon size={16} />
           <span>{actionError}</span>
         </div>
       )}
 
-      <section className="card" ref={allTransportersRef}>
-        <div className="card-head">
+      <section className="panel section" ref={directoryRef} aria-labelledby="directory-title">
+        <div className="resulthead">
           <div>
-            <h3>{FILTER_LABEL[statusFilter]}</h3>
+            <h3 id="directory-title">{FILTER_LABEL[statusFilter]}</h3>
             <p>
               {statusFilter === "all"
-                ? "Every transporter, including Not Active and hidden ones."
-                : `Filtered from the summary cards above.`}
+                ? "Every transporter, including Not Active and hidden ones. Search, edit or update visibility."
+                : "Filtered from the summary cards above."}
             </p>
           </div>
-        </div>
-        <div className="card-toolbar">
-          <label className="input-wrap manage-name-search">
-            <span className="input-icon">
-              <SearchIcon size={16} />
-            </span>
-            <input
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search transporter name"
-              aria-label="Search transporter name"
-            />
-            {query && (
-              <button type="button" className="input-action" aria-label="Clear search" onClick={() => { setQuery(""); setPage(1); }}>
-                <XIcon size={14} />
-              </button>
+          <div className="filterwrap">
+            {statusFilter !== "all" && (
+              <span className="filterpill">
+                {FILTER_LABEL[statusFilter]}
+                <button type="button" aria-label="Clear filter" onClick={() => applyFilter("all")}>
+                  <XIcon size={12} />
+                </button>
+              </span>
             )}
-          </label>
-          {statusFilter !== "all" && (
-            <span className="filter-pill">
-              {FILTER_LABEL[statusFilter]}
-              <button type="button" aria-label="Clear filter" onClick={() => applyFilter("all")}>
-                <XIcon size={12} />
-              </button>
+            <span className="inputbox">
+              <span className="glass"><SearchIcon size={14} /></span>
+              <input
+                className="filterinput"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search name…"
+                aria-label="Search transporter name"
+              />
+              {query && (
+                <button type="button" className="clearbtn" aria-label="Clear search" onClick={() => { setQuery(""); setPage(1); }}>
+                  <XIcon size={12} />
+                </button>
+              )}
             </span>
-          )}
+          </div>
         </div>
 
         {listError && (
-          <div className="alert alert-error card-alert" role="alert">
+          <div className="alert error" role="alert">
             <AlertIcon size={16} />
             <span>{listError}</span>
           </div>
         )}
-        {!list && !listError && <p className="card-note">Loading transporters…</p>}
+        {!list && !listError && <p className="loading-line"><span className="spinner" aria-hidden="true" /> Loading transporters…</p>}
 
         {list && filtered.length === 0 && (
-          <div className="state-card state-card-flat" role="status">
-            <span className="state-icon">
-              <EmptyIcon size={30} />
-            </span>
+          <div className="empty" role="status">
+            <span className="empty-icon"><EmptyIcon size={24} /></span>
             <h3>No transporters found</h3>
             <p>
               {query
                 ? `No transporter name matches "${query}"${statusFilter !== "all" ? ` among ${FILTER_LABEL[statusFilter].toLowerCase()}` : ""}.`
                 : statusFilter !== "all"
                   ? `There are no ${FILTER_LABEL[statusFilter].toLowerCase()} right now.`
-                  : "No transporters in the data yet."}
+                  : "No transporters in the data yet. Try another name or add a transporter."}
             </p>
           </div>
         )}
 
         {pageRows.length > 0 && (
           <>
-            <p className="result-bar">
+            <p className="hint" style={{ marginBottom: 10 }}>
               {filtered.length} transporter{filtered.length === 1 ? "" : "s"}
               {query ? ` matching "${query}"` : ""}
             </p>
-            <div className="table-scroll" tabIndex={0} role="region" aria-label="All transporters table">
-              <table className="sheet manage-table">
+            <div className="tablewrap flat" tabIndex={0} role="region" aria-label="All transporters table">
+              <table className="data">
                 <thead>
                   <tr>
-                    <th scope="col">Transporter Name</th>
-                    <th scope="col">Service Cities</th>
-                    <th scope="col">Pincode</th>
+                    <th scope="col">Transporter</th>
                     <th scope="col">Mobile</th>
+                    <th scope="col">Service Cities</th>
+                    <th scope="col">Pincodes</th>
                     <th scope="col">Status</th>
-                    <th scope="col" className="cell-actions">Actions</th>
+                    <th scope="col">Visibility</th>
+                    <th scope="col" className="actions-cell">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pageRows.map((t) => (
-                    <tr key={t.transport_name} className={t.hidden ? "row-muted" : undefined}>
+                    <tr key={t.transport_name} className={t.hidden ? "muted-row" : undefined}>
                       <td>
-                        <span className="transport-cell">
+                        <span className="namecell">
                           <Avatar name={t.transport_name} size="sm" photoUrl={t.photo_url} />
-                          <span className="transport-stack">
-                            <span className="transport-line">
-                              <span className="transport-name">{t.transport_name}</span>
-                              {t.hidden && <OverrideBadge kind="Hidden" />}
+                          <span>
+                            <b className="transport-name">{t.transport_name}</b>
+                            <span className="badges">
+                              <span className="chip muted">{deriveTransportType(t.transport_name)}</span>
                               {t.added_locally && <OverrideBadge kind="Added" />}
                               {t.edited && <OverrideBadge kind="Edited" />}
                             </span>
-                            <span className="transport-type">{deriveTransportType(t.transport_name)}</span>
                           </span>
                         </span>
                       </td>
-                      <td className="city wrap-cell">
-                        <CompactList items={t.service_cities} />
-                      </td>
-                      <td className="wrap-cell pin-list">
-                        <PincodeSummary pins={t.pincodes} />
-                      </td>
-                      <td className={t.mobile ? "mobile" : "na"}>{t.mobile || NA}</td>
-                      <td>
-                        <StatusBadge status={t.status} />
-                      </td>
-                      <td className="cell-actions">
-                        <div className="icon-actions" aria-label={`Actions for ${t.transport_name}`}>
-                          <button type="button" className="icon-btn icon-btn-ghost" aria-label="Edit" title="Edit"
-                                  onClick={() => setEditing({ kind: "transporter", t })}>
-                            <PencilIcon size={16} />
+                      <td className={t.mobile ? "phone nowrap" : "na nowrap"}>{t.mobile || NA}</td>
+                      <td><CompactList items={t.service_cities} /></td>
+                      <td><PincodeSummary pins={t.pincodes} /></td>
+                      <td><StatusBadge status={t.status} /></td>
+                      <td>{t.hidden ? <OverrideBadge kind="Hidden" /> : <span className="tag good">Visible</span>}</td>
+                      <td className="actions-cell">
+                        <span aria-label={`Actions for ${t.transport_name}`} role="group">
+                          <button type="button" className="linkbtn" onClick={() => setEditing({ kind: "transporter", t })}>Edit</button>
+                          <button type="button" className="linkbtn" title={t.hidden ? "Show in search" : "Hide from search"}
+                                  onClick={() => toggleHidden(t)}>
+                            {t.hidden ? "Unhide" : "Hide"}
                           </button>
-                          <button type="button" className="icon-btn icon-btn-ghost" aria-label={t.hidden ? "Unhide" : "Hide"}
-                                  title={t.hidden ? "Show in search" : "Hide from search"} onClick={() => toggleHidden(t)}>
-                            {t.hidden ? <EyeIcon size={16} /> : <EyeOffIcon size={16} />}
-                          </button>
-                          <button type="button" className="icon-btn icon-btn-ghost icon-btn-danger" aria-label="Delete" title="Delete"
-                                  onClick={() => remove(t)}>
-                            <TrashIcon size={16} />
-                          </button>
-                        </div>
+                          <button type="button" className="linkbtn danger" onClick={() => remove(t)}>Delete</button>
+                        </span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="card-foot">
-              <Pagination page={current} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
+            <Pagination page={current} totalPages={totalPages} total={filtered.length} pageSize={PAGE_SIZE} onPage={setPage} />
+          </>
+        )}
+      </section>
+
+      <section className="panel section" aria-labelledby="deleted-title">
+        <h3 id="deleted-title">
+          Recently deleted {list && list.deleted.length > 0 && <span className="count">{list.deleted.length}</span>}
+        </h3>
+        {!list || list.deleted.length === 0 ? (
+          <p className="sub">No deleted transporters.</p>
+        ) : (
+          <>
+            <p className="sub" style={{ marginBottom: 10 }}>Removed from Search and the directory above. Restore to bring one back.</p>
+            <div className="tablewrap flat">
+              <table className="data" style={{ minWidth: 0 }}>
+                <tbody>
+                  {list.deleted.map((name) => (
+                    <tr key={name}>
+                      <td>
+                        <span className="namecell">
+                          <Avatar name={name} size="sm" />
+                          <b>{name}</b>
+                        </span>
+                      </td>
+                      <td className="actions-cell">
+                        <button type="button" className="linkbtn" onClick={() => run(() => restoreTransporter(name), "Transporter restored")}>
+                          <RotateCcwIcon size={12} /> Restore
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </>
         )}
       </section>
 
-      {list && list.deleted.length > 0 && (
-        <section className="card">
-          <button
-            type="button"
-            className={`card-head card-head-toggle ${deletedOpen ? "" : "collapsed"}`}
-            aria-expanded={deletedOpen}
-            aria-controls="deleted-transporters-list"
-            onClick={() => setDeletedOpen((v) => !v)}
-          >
-            <div>
-              <h3>
-                Deleted transporters <span className="count-pill">{list.deleted.length}</span>
-              </h3>
-              <p>Removed from Search and the list above. Restore to bring one back.</p>
-            </div>
-            <span className={`chevron ${deletedOpen ? "open" : ""}`} aria-hidden="true">
-              <ChevronDownIcon size={18} />
-            </span>
-          </button>
-          {deletedOpen && (
-            <ul className="deleted-list" id="deleted-transporters-list">
-              {list.deleted.map((name) => (
-                <li key={name}>
-                  <span className="transport-cell">
-                    <Avatar name={name} size="sm" />
-                    <span className="transport-name">{name}</span>
-                  </span>
-                  <button type="button" className="btn btn-outline btn-sm" onClick={() => run(() => restoreTransporter(name))}>
-                    <RotateCcwIcon size={14} /> Restore
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-
-      <section className="card">
-        <div className="card-head">
-          <div>
-            <h3>
-              Current local overrides <span className="count-pill">{overrides ? overrides.length : "…"}</span>
-            </h3>
-            <p>Row-level edits, hides and added transporters.</p>
-          </div>
-        </div>
-        <div className="alert alert-info card-alert">
+      <section className="panel section" aria-labelledby="overrides-title">
+        <h3 id="overrides-title">
+          Current local overrides <span className="count">{overrides ? overrides.length : "…"}</span>
+        </h3>
+        <p className="sub">Row-level edits, hides and added transporters.</p>
+        <div className="alert info">
           <InfoIcon size={16} />
           <span>These are applied on top of the RDS data, which is never changed. Deleting an edit brings back the original values.</span>
         </div>
         {overridesError && (
-          <div className="alert alert-error card-alert" role="alert">
+          <div className="alert error" role="alert">
             <AlertIcon size={16} />
             <span>{overridesError}</span>
           </div>
         )}
-        {overrides && overrides.length === 0 && <p className="card-note">No local overrides yet.</p>}
+        {overrides && overrides.length === 0 && <p className="sub">No local overrides yet.</p>}
         {overrides && overrides.length > 0 && (
-          <div className="table-scroll">
-            <table className="sheet">
+          <div className="tablewrap flat">
+            <table className="data">
               <thead>
                 <tr>
                   <th scope="col">Transporter</th>
@@ -462,34 +441,26 @@ export default function ManageTransporters() {
                   <th scope="col">City</th>
                   <th scope="col">Pincode</th>
                   <th scope="col">Status</th>
-                  <th scope="col" className="cell-actions">Actions</th>
+                  <th scope="col" className="actions-cell">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {overrides.map((o) => (
                   <tr key={o.id}>
-                    <td className="transport-name">{o.override_transport_name || o.source_transport_name}</td>
+                    <td><b>{o.override_transport_name || o.source_transport_name}</b></td>
                     <td>
-                      <span className="change-cell">
-                        <OverrideBadge kind={overrideKind(o)} />
-                        <span className="muted small">{changeText(o)}</span>
-                      </span>
+                      <OverrideBadge kind={overrideKind(o)} /> <span className="muted">{changeText(o)}</span>
                     </td>
-                    <td className={o.override_city || o.source_city ? "city" : "na"}>{o.override_city || o.source_city || NA}</td>
-                    <td className={o.override_pincode || o.source_pincode ? "pin" : "na"}>{o.override_pincode || o.source_pincode || NA}</td>
-                    <td>{o.override_status ? <StatusBadge status={o.override_status} /> : <span className="muted small">Original value</span>}</td>
-                    <td className="cell-actions">
-                      <div className="icon-actions">
-                        <button type="button" className="icon-btn icon-btn-ghost" aria-label="Edit" title="Edit"
-                                onClick={() => setEditing({ kind: "override", override: o })}>
-                          <PencilIcon size={16} />
-                        </button>
-                        <button type="button" className="icon-btn icon-btn-ghost icon-btn-danger" aria-label="Delete"
-                                title={o.is_new ? "Delete" : "Remove this override (back to the original data)"}
-                                onClick={() => run(() => deleteOverride(o.id))}>
-                          {o.is_new ? <TrashIcon size={16} /> : <RotateCcwIcon size={16} />}
-                        </button>
-                      </div>
+                    <td className={o.override_city || o.source_city ? "" : "na"}>{o.override_city || o.source_city || NA}</td>
+                    <td className={o.override_pincode || o.source_pincode ? "nowrap" : "na"}>{o.override_pincode || o.source_pincode || NA}</td>
+                    <td>{o.override_status ? <StatusBadge status={o.override_status} /> : <span className="muted">Original value</span>}</td>
+                    <td className="actions-cell">
+                      <button type="button" className="linkbtn" onClick={() => setEditing({ kind: "override", override: o })}>Edit</button>
+                      <button type="button" className="linkbtn danger" aria-label="Delete"
+                              title={o.is_new ? "Delete" : "Remove this override (back to the original data)"}
+                              onClick={() => run(() => deleteOverride(o.id), o.is_new ? "Override deleted" : "Override removed")}>
+                        {o.is_new ? "Delete" : "Revert"}
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -500,11 +471,12 @@ export default function ManageTransporters() {
       </section>
 
       {editing && (
-        <Modal label={editing.kind === "new" ? "Add Transporter" : "Edit transporter"} onClose={closeEditor}>
+        <Modal label={editing.kind === "new" ? "Add transporter" : "Edit transporter"} onClose={closeEditor}>
           {editor()}
         </Modal>
       )}
-    </div>
+      {toast && <div className="toast" role="status">{toast}</div>}
+    </section>
   );
 }
 

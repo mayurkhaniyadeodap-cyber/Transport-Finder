@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import SearchResults from "./SearchResults";
-import TransporterDrawer from "./TransporterDrawer";
+import TransporterProfile from "./TransporterProfile";
 import type { SearchResponse, TransportResult } from "../services/api";
 
 afterEach(cleanup);
@@ -26,14 +26,14 @@ describe("View Profile buttons", () => {
     const onView = vi.fn();
     const r = row();
     render(<SearchResults data={data(r)} page={1} onPageChange={noop} view="cards" onViewChange={noop} onViewDetails={onView} />);
-    fireEvent.click(screen.getByRole("button", { name: /View Profile/ }));
+    fireEvent.click(screen.getByRole("button", { name: /View profile/ }));
     expect(onView).toHaveBeenCalledWith(r);
   });
 
   it("every table row has a View Profile button too", () => {
     const onView = vi.fn();
     render(<SearchResults data={data(row())} page={1} onPageChange={noop} view="table" onViewChange={noop} onViewDetails={onView} />);
-    fireEvent.click(screen.getByRole("button", { name: "View Profile" }));
+    fireEvent.click(screen.getByRole("button", { name: "View profile" }));
     expect(onView).toHaveBeenCalledTimes(1);
   });
 
@@ -79,7 +79,7 @@ describe("View logo/image preview", () => {
   const open = (name = "Abhisek Travels") => fireEvent.click(screen.getByRole("button", { name: `View ${name} logo/image` }));
 
   it("clicking the profile image opens a larger preview of the official logo", () => {
-    render(<TransporterDrawer row={row({ photo_url: "/api/transport/photo?key=a&v=1", photo_source: "official" })} onClose={noop} />);
+    render(<TransporterProfile row={row({ photo_url: "/api/transport/photo?key=a&v=1", photo_source: "official" })} onBack={noop} />);
     expect(preview()).toBeNull();
     open();
     const box = preview()!;
@@ -90,7 +90,7 @@ describe("View logo/image preview", () => {
   });
 
   it("shows the Admin-uploaded image when there is one", () => {
-    render(<TransporterDrawer row={row({ photo_url: "/p/uploaded.png", photo_source: "admin" })} onClose={noop} />);
+    render(<TransporterProfile row={row({ photo_url: "/p/uploaded.png", photo_source: "admin" })} onBack={noop} />);
     open();
     const box = preview()!;
     expect(within(box).getByRole("img", { name: "Abhisek Travels image" }).getAttribute("src")).toBe("/p/uploaded.png");
@@ -98,7 +98,7 @@ describe("View logo/image preview", () => {
   });
 
   it("with no image, the preview shows the short name, not a picture", () => {
-    render(<TransporterDrawer row={row({ transport_name: "Gujarat Transport Service" })} onClose={noop} />);
+    render(<TransporterProfile row={row({ transport_name: "Gujarat Transport Service" })} onBack={noop} />);
     open("Gujarat Transport Service");
     const box = preview()!;
     expect(within(box).getByRole("img", { name: "Gujarat Transport Service (GTS)" }).textContent).toBe("GTS");
@@ -106,7 +106,7 @@ describe("View logo/image preview", () => {
   });
 
   it("falls back to the short name in the preview if the image fails to load", () => {
-    render(<TransporterDrawer row={row({ photo_url: "/broken.png", photo_source: "official" })} onClose={noop} />);
+    render(<TransporterProfile row={row({ photo_url: "/broken.png", photo_source: "official" })} onBack={noop} />);
     open();
     const box = preview()!;
     fireEvent.error(within(box).getByRole("img", { name: "Abhisek Travels image" }));
@@ -115,17 +115,17 @@ describe("View logo/image preview", () => {
 
   it("closes with the × button, keeping the profile open", () => {
     const onClose = vi.fn();
-    render(<TransporterDrawer row={row({ photo_url: "/p.png", photo_source: "official" })} onClose={onClose} />);
+    render(<TransporterProfile row={row({ photo_url: "/p.png", photo_source: "official" })} onBack={onClose} />);
     open();
     fireEvent.click(within(preview()!).getByRole("button", { name: "Close image preview" }));
     expect(preview()).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "Abhisek Travels" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Abhisek Travels" })).toBeTruthy();
   });
 
   it("closes on a click outside the image, but not on the image itself", () => {
     const onClose = vi.fn();
-    render(<TransporterDrawer row={row({ photo_url: "/p.png", photo_source: "official" })} onClose={onClose} />);
+    render(<TransporterProfile row={row({ photo_url: "/p.png", photo_source: "official" })} onBack={onClose} />);
     open();
     fireEvent.click(within(preview()!).getByRole("img", { name: "Abhisek Travels image" }));
     expect(preview()).not.toBeNull();
@@ -134,19 +134,26 @@ describe("View logo/image preview", () => {
     expect(onClose).not.toHaveBeenCalled(); // the profile underneath stays open
   });
 
-  it("Escape closes the preview first, then a second Escape closes the profile", () => {
-    const onClose = vi.fn();
-    render(<TransporterDrawer row={row()} onClose={onClose} />);
+  it("Escape closes the preview; the profile page stays open", () => {
+    const onBack = vi.fn();
+    render(<TransporterProfile row={row()} onBack={onBack} />);
     open();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(preview()).toBeNull();
-    expect(onClose).not.toHaveBeenCalled();
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onBack).not.toHaveBeenCalled();
+    expect(screen.getByRole("region", { name: "Abhisek Travels" })).toBeTruthy();
+  });
+
+  it("Back to search leaves the profile", () => {
+    const onBack = vi.fn();
+    render(<TransporterProfile row={row()} onBack={onBack} />);
+    fireEvent.click(screen.getByRole("button", { name: /Back to search/ }));
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 
   it("is view-only: the preview has no upload or change controls", () => {
-    render(<TransporterDrawer row={row({ photo_url: "/p.png", photo_source: "official" })} onClose={noop} />);
+    render(<TransporterProfile row={row({ photo_url: "/p.png", photo_source: "official" })} onBack={noop} />);
     open();
     const box = preview()!;
     expect(box.querySelector('input[type="file"]')).toBeNull();
@@ -156,7 +163,7 @@ describe("View logo/image preview", () => {
 
 describe("Transporter profile", () => {
   it("shows the official company logo when there is one, and says so", () => {
-    render(<TransporterDrawer row={row({ photo_url: "/api/transport/photo?key=a&v=1", photo_source: "official" })} onClose={noop} />);
+    render(<TransporterProfile row={row({ photo_url: "/api/transport/photo?key=a&v=1", photo_source: "official" })} onBack={noop} />);
     const img = screen.getByRole("img", { name: "Abhisek Travels image" }) as HTMLImageElement;
     expect(img.getAttribute("src")).toBe("/api/transport/photo?key=a&v=1");
     expect(screen.getByText("Official company logo")).toBeTruthy();
@@ -164,13 +171,13 @@ describe("Transporter profile", () => {
   });
 
   it("an Admin-uploaded image is labelled as such", () => {
-    render(<TransporterDrawer row={row({ photo_url: "/p.png", photo_source: "admin" })} onClose={noop} />);
+    render(<TransporterProfile row={row({ photo_url: "/p.png", photo_source: "admin" })} onBack={noop} />);
     expect(screen.getByText("Image uploaded by Admin")).toBeTruthy();
   });
 
   it("shows the transporter's short name -- not a made-up picture -- when there's no image", () => {
-    render(<TransporterDrawer row={row({ transport_name: "Gujarat Transport Service" })} onClose={noop} />);
-    const dialog = screen.getByRole("dialog");
+    render(<TransporterProfile row={row({ transport_name: "Gujarat Transport Service" })} onBack={noop} />);
+    const dialog = screen.getByRole("region");
     const tile = within(dialog).getByRole("img", { name: "Gujarat Transport Service (GTS)" });
     expect(tile.textContent).toBe("GTS");
     expect(tile.classList.contains("profile-photo")).toBe(true);
@@ -180,14 +187,14 @@ describe("Transporter profile", () => {
   });
 
   it("falls back to the short name if the image fails to load", () => {
-    render(<TransporterDrawer row={row({ photo_url: "/broken.png", photo_source: "official" })} onClose={noop} />);
+    render(<TransporterProfile row={row({ photo_url: "/broken.png", photo_source: "official" })} onBack={noop} />);
     fireEvent.error(screen.getByRole("img", { name: "Abhisek Travels image" }));
     expect(screen.getByRole("img", { name: "Abhisek Travels (AT)" }).textContent).toBe("AT");
   });
 
   it("shows name, mobile, service cities, pincodes, status and transport type", () => {
-    render(<TransporterDrawer row={row()} onClose={noop} />);
-    const dialog = screen.getByRole("dialog");
+    render(<TransporterProfile row={row()} onBack={noop} />);
+    const dialog = screen.getByRole("region");
     expect(within(dialog).getByText("Transporter profile")).toBeTruthy();
     expect(within(dialog).getByRole("heading", { name: "Abhisek Travels" })).toBeTruthy();
     expect(within(dialog).getAllByText("9624203797").length).toBeGreaterThan(0); // mobile
@@ -201,8 +208,8 @@ describe("Transporter profile", () => {
   });
 
   it("does not show a Location anywhere", () => {
-    render(<TransporterDrawer row={row()} onClose={noop} />);
-    const dialog = screen.getByRole("dialog");
+    render(<TransporterProfile row={row()} onBack={noop} />);
+    const dialog = screen.getByRole("region");
     expect(within(dialog).queryByText("Location")).toBeNull();
     expect(within(dialog).queryByText(/Mumbai, Maharashtra/)).toBeNull();
     fireEvent.click(within(dialog).getByRole("tab", { name: "Coverage" }));
@@ -210,8 +217,8 @@ describe("Transporter profile", () => {
   });
 
   it("is view-only: no photo upload or edit controls, for any role", () => {
-    render(<TransporterDrawer row={row({ photo_url: "/p.png" })} onClose={noop} />);
-    const dialog = screen.getByRole("dialog");
+    render(<TransporterProfile row={row({ photo_url: "/p.png" })} onBack={noop} />);
+    const dialog = screen.getByRole("region");
     expect(dialog.querySelector('input[type="file"]')).toBeNull();
     expect(within(dialog).queryByRole("button", { name: /Upload|Replace|Remove|Edit|Delete/ })).toBeNull();
   });
@@ -223,47 +230,47 @@ describe("Pincodes: first 2, then +X more", () => {
   it("on a result card", () => {
     render(<SearchResults data={data(row({ pincode: many }))} page={1} onPageChange={noop} view="cards" onViewChange={noop} onViewDetails={noop} />);
     const card = screen.getByRole("heading", { name: "Abhisek Travels" }).closest("article")!;
-    expect([...card.querySelectorAll(".pin-chip")].map((c) => c.textContent)).toEqual(["380001", "380002"]);
+    expect(within(card).getByText("380001, 380002")).toBeTruthy();
     expect(within(card).getByText("+2 more")).toBeTruthy();
   });
 
   it("in the table", () => {
     render(<SearchResults data={data(row({ pincode: many }))} page={1} onPageChange={noop} view="table" onViewChange={noop} onViewDetails={noop} />);
-    const cell = screen.getAllByRole("cell")[3];
+    const cell = screen.getAllByRole("cell")[4];
     expect(cell.textContent).toBe("380001, 380002+2 more");
   });
 
   it("on the profile overview -- the Coverage tab still lists every pincode", () => {
-    render(<TransporterDrawer row={row({ pincode: many })} onClose={noop} />);
-    const dialog = screen.getByRole("dialog");
+    render(<TransporterProfile row={row({ pincode: many })} onBack={noop} />);
+    const dialog = screen.getByRole("region");
     expect(within(dialog).getByText("380001, 380002")).toBeTruthy();
     expect(within(dialog).getByText("+2 more")).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("tab", { name: "Coverage" }));
     expect(within(dialog).getByRole("heading", { name: "Pincodes (4)" })).toBeTruthy();
-    expect(within(dialog).getAllByRole("listitem").filter((li) => li.classList.contains("pin-chip"))).toHaveLength(4);
+    expect(within(within(dialog).getByRole("list", { name: "Pincodes" })).getAllByRole("listitem")).toHaveLength(4);
   });
 
   it("2 or fewer pincodes show no +more", () => {
-    render(<TransporterDrawer row={row({ pincode: "400001, 400002" })} onClose={noop} />);
+    render(<TransporterProfile row={row({ pincode: "400001, 400002" })} onBack={noop} />);
     expect(screen.queryByText(/more$/)).toBeNull();
   });
 });
 
 describe("Approx. Shipment Charge / 1 Box on the profile", () => {
-  const fact = () => screen.getByText("Approx. Shipment Charge / 1 Box (₹)").closest(".fact") as HTMLElement;
+  const fact = () => screen.getByText("Approx. Shipment Charge / 1 Box (₹)").closest(".profileitem") as HTMLElement;
 
   it.each([["45", "₹45"], ["75.50", "₹75.50"], ["120", "₹120"]])("shows %s as %s", (value, shown) => {
-    render(<TransporterDrawer row={row({ shipment_charge: value })} onClose={noop} />);
+    render(<TransporterProfile row={row({ shipment_charge: value })} onBack={noop} />);
     expect(within(fact()).getByText(shown)).toBeTruthy();
   });
 
   it("shows Not Available when empty", () => {
-    render(<TransporterDrawer row={row({ shipment_charge: null })} onClose={noop} />);
+    render(<TransporterProfile row={row({ shipment_charge: null })} onBack={noop} />);
     expect(within(fact()).getByText("Not Available")).toBeTruthy();
   });
 
   it("is view-only on the profile", () => {
-    render(<TransporterDrawer row={row({ shipment_charge: "75.50" })} onClose={noop} />);
-    expect(screen.getByRole("dialog").querySelector("input")).toBeNull();
+    render(<TransporterProfile row={row({ shipment_charge: "75.50" })} onBack={noop} />);
+    expect(screen.getByRole("region").querySelector("input")).toBeNull();
   });
 });

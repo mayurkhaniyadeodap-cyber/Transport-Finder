@@ -1,10 +1,7 @@
 import type { ReactNode } from "react";
-import { deriveTransportType } from "../searchDefaults";
 import type { SearchResponse, TransportResult } from "../services/api";
-import { CompactList, PINCODE_PREVIEW, PincodeSummary, splitPincodes } from "./CityList";
-import {
-  ArrowLeftIcon, ArrowRightIcon, CityIcon, EmptyIcon, GridIcon, HashIcon, LocationPinIcon, PhoneIcon, TableIcon, UserIcon,
-} from "./Icons";
+import { CompactList, formatCharge, PincodeSummary, splitPincodes } from "./CityList";
+import { ArrowLeftIcon, EmptyIcon, GridIcon, RowsIcon } from "./Icons";
 import { Avatar, Pagination, StatusBadge, TypeChip } from "./ui";
 
 const NA = "Not Available";
@@ -22,67 +19,80 @@ interface Props {
   onBack?: () => void;
 }
 
-/** One line describing what was matched, e.g. "Showing transporters in Rajkot". */
+/** What was matched, e.g. "Rajkot" or "pincode 360001". */
+export function matchedPlace({ search, match_level }: SearchResponse): string {
+  switch (match_level) {
+    case "pincode":
+      return `pincode ${search.pincode}`;
+    case "city_state":
+      return [search.city, search.state].filter(Boolean).join(", ");
+    case "state":
+      return search.state ?? "";
+    case "transporter":
+      return search.transport_name ?? "";
+    default:
+      return search.pincode || search.city || search.state || search.transport_name || "";
+  }
+}
+
+/** One line describing how it was matched. */
 function levelText({ search, match_level }: SearchResponse): string {
   const fallback = search.pincode && match_level && match_level !== "pincode" ? " · no exact pincode match" : "";
   switch (match_level) {
     case "pincode":
-      return `Showing transporters for pincode ${search.pincode}`;
+      return "Exact pincode match";
     case "city_state":
-      return `Showing transporters in ${[search.city, search.state].filter(Boolean).join(", ")}${fallback}`;
+      return `City match${fallback}`;
     case "state":
-      return `Showing transporters across ${search.state}${fallback}`;
+      return `State-wide match${fallback}`;
     case "transporter":
-      return `Showing ${search.transport_name}`;
+      return "Transporter name match";
     default:
       return "";
   }
 }
 
-function PincodeChips({ value }: { value: string | null }) {
-  const pins = splitPincodes(value);
-  if (!pins.length) return <span className="na">{NA}</span>;
-  const extra = pins.length - PINCODE_PREVIEW;
-  return (
-    <span className="chip-row" title={pins.join(", ")}>
-      {pins.slice(0, PINCODE_PREVIEW).map((p) => (
-        <span key={p} className="pin-chip">{p}</span>
-      ))}
-      {extra > 0 && <span className="more-chip">+{extra} more</span>}
-    </span>
-  );
-}
-
 function ResultCard({ row, onViewDetails }: { row: TransportResult; onViewDetails: (row: TransportResult) => void }) {
+  const cities = row.service_cities ?? [];
+  const pins = splitPincodes(row.pincode);
+  const charge = formatCharge(row.shipment_charge);
   return (
-    <article className="result-card">
-      <div className="result-card-top">
+    <article className="result">
+      <div className="resulttop">
         <Avatar name={row.transport_name} photoUrl={row.photo_url} />
-        <div className="result-card-title">
-          <h3 className="result-card-name" title={row.transport_name}>{row.transport_name}</h3>
-          <TypeChip name={row.transport_name} />
+        <div>
+          <h3 className="rname" title={row.transport_name}>{row.transport_name}</h3>
+          <div className="rmeta">
+            {cities.length} service {cities.length === 1 ? "city" : "cities"} · {pins.length} pincode{pins.length === 1 ? "" : "s"}
+          </div>
         </div>
         <StatusBadge status={row.status} />
       </div>
-
-      <dl className="result-card-facts">
-        <div title="Service Cities">
-          <dt><CityIcon size={16} /><span className="sr-only">Service Cities</span></dt>
-          <dd><CompactList items={row.service_cities} /></dd>
+      <div className="chips">
+        <TypeChip name={row.transport_name} />
+      </div>
+      <dl className="details">
+        <div className="detail">
+          <dt>Contact number</dt>
+          <dd className={row.contact_number ? "phone" : "na"}>{row.contact_number || NA}</dd>
         </div>
-        <div title="Pincode">
-          <dt><HashIcon size={16} /><span className="sr-only">Pincode</span></dt>
-          <dd><PincodeChips value={row.pincode} /></dd>
+        <div className="detail">
+          <dt>Pincode coverage</dt>
+          <dd><PincodeSummary pins={pins} /></dd>
         </div>
-        <div title="Mobile">
-          <dt><PhoneIcon size={16} /><span className="sr-only">Mobile</span></dt>
-          <dd className={row.contact_number ? "mobile-strong" : "na"}>{row.contact_number || NA}</dd>
+        <div className="detail">
+          <dt>Service Cities</dt>
+          <dd><CompactList items={cities} /></dd>
+        </div>
+        <div className="detail">
+          <dt>Shipment charge / box</dt>
+          <dd>{charge ? <>{charge} <span className="more">approx.</span></> : <span className="na">{NA}</span>}</dd>
         </div>
       </dl>
-
-      <div className="result-card-foot">
-        <button type="button" className="btn btn-soft" onClick={() => onViewDetails(row)}>
-          <UserIcon size={16} /> View Profile <ArrowRightIcon size={16} />
+      <div className="resultbottom">
+        <span className="charge">From order history</span>
+        <button type="button" className="linkbtn" onClick={() => onViewDetails(row)}>
+          View profile ↗
         </button>
       </div>
     </article>
@@ -94,18 +104,15 @@ export default function SearchResults({ data, page, onPageChange, view, onViewCh
   const total = data.total ?? results.length;
   const totalPages = data.total_pages ?? 1;
   const pageSize = data.page_size ?? results.length;
-  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
 
   if (total === 0) {
     return (
-      <section className="card state-card" id="results" role="status">
-        <span className="state-icon">
-          <EmptyIcon size={30} />
-        </span>
+      <section className="panel empty" id="results" role="status">
+        <span className="empty-icon"><EmptyIcon size={26} /></span>
         <h3>No transporters found</h3>
         <p>{message && !/no transporters/i.test(message) ? message : "Try a different pincode, city, state or transporter name."}</p>
         {onBack && (
-          <button type="button" className="btn btn-primary" onClick={onBack}>
+          <button type="button" className="btn secondary" onClick={onBack}>
             <ArrowLeftIcon size={16} /> Back to search
           </button>
         )}
@@ -113,85 +120,78 @@ export default function SearchResults({ data, page, onPageChange, view, onViewCh
     );
   }
 
+  const place = matchedPlace(data);
   return (
-    <section className="results" id="results" aria-labelledby="results-title">
-      <header className="results-head">
+    <section id="results" aria-labelledby="results-title">
+      <div className="resulthead">
         <div>
-          <h2 id="results-title">
-            {total} transporter{total === 1 ? "" : "s"} found
-          </h2>
-          <p className="results-sub">
-            <LocationPinIcon size={16} />
-            {levelText(data)}
-          </p>
+          <h3 id="results-title">
+            {total} transporter{total === 1 ? "" : "s"} found{place ? ` for ${place}` : ""}
+          </h3>
+          <p>{levelText(data)}{levelText(data) ? " · " : ""}Based on recorded shipments</p>
         </div>
-        <div className="segmented view-toggle" role="group" aria-label="Results view">
-          <button type="button" aria-pressed={view === "cards"} className={`segmented-btn ${view === "cards" ? "active" : ""}`} onClick={() => onViewChange("cards")}>
-            <GridIcon size={16} /> Cards
+        <div className="viewtoggle" role="group" aria-label="Results view">
+          <button type="button" aria-pressed={view === "cards"} className={view === "cards" ? "active" : ""} onClick={() => onViewChange("cards")}>
+            <GridIcon size={14} /> Cards
           </button>
-          <button type="button" aria-pressed={view === "table"} className={`segmented-btn ${view === "table" ? "active" : ""}`} onClick={() => onViewChange("table")}>
-            <TableIcon size={16} /> Table
+          <button type="button" aria-pressed={view === "table"} className={view === "table" ? "active" : ""} onClick={() => onViewChange("table")}>
+            <RowsIcon size={14} /> List
           </button>
         </div>
-      </header>
+      </div>
 
       {summary}
 
       {view === "cards" ? (
-        <div className="result-grid">
+        <div className="cards">
           {results.map((r, i) => (
             <ResultCard key={`${r.city}-${r.transport_name}-${r.pincode}-${i}`} row={r} onViewDetails={onViewDetails} />
           ))}
         </div>
       ) : (
-        <div className="card table-card">
-          <div className="table-scroll" tabIndex={0} role="region" aria-label="Transport results table">
-            <table className="sheet">
-              <thead>
-                <tr>
-                  <th scope="col">#</th>
-                  <th scope="col">Transporter</th>
-                  <th scope="col">Service Cities</th>
-                  <th scope="col">Pincode</th>
-                  <th scope="col">Mobile</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Transport Type</th>
-                  <th scope="col">Actions</th>
+        <div className="tablewrap" style={{ marginTop: 14 }} tabIndex={0} role="region" aria-label="Transport results table">
+          {/* The dense List: a real table, with each cell's heading shown as a small label (CSS) */}
+          <table className="data list-table">
+            <thead className="sr-only">
+              <tr>
+                <th scope="col">Transporter</th>
+                <th scope="col">Type</th>
+                <th scope="col">Mobile</th>
+                <th scope="col">Service Cities</th>
+                <th scope="col">Pincodes</th>
+                <th scope="col">Charge / box</th>
+                <th scope="col">Status</th>
+                <th scope="col"><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.map((r, i) => (
+                <tr key={`${r.city}-${r.transport_name}-${r.pincode}-${i}`}>
+                  <td>
+                    <span className="namecell">
+                      <Avatar name={r.transport_name} size="sm" photoUrl={r.photo_url} />
+                      <b>{r.transport_name}</b>
+                    </span>
+                  </td>
+                  <td className="nowrap" data-label="Type"><TypeChip name={r.transport_name} /></td>
+                  <td className={r.contact_number ? "phone nowrap" : "na nowrap"} data-label="Mobile">{r.contact_number || NA}</td>
+                  <td data-label="Service Cities"><CompactList items={r.service_cities} /></td>
+                  <td className="mono" data-label="Pincodes"><PincodeSummary pins={splitPincodes(r.pincode)} /></td>
+                  <td className="nowrap" data-label="Charge / box">{formatCharge(r.shipment_charge) ?? <span className="na">{NA}</span>}</td>
+                  <td data-label="Status"><StatusBadge status={r.status} /></td>
+                  <td className="actions-cell">
+                    <button type="button" className="linkbtn" aria-label="View profile" onClick={() => onViewDetails(r)}>
+                      View →
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {results.map((r, i) => (
-                  <tr key={`${r.city}-${r.transport_name}-${r.pincode}-${i}`}>
-                    <td className="row-index">{rangeStart + i}</td>
-                    <td>
-                      <span className="transport-cell">
-                        <Avatar name={r.transport_name} size="sm" photoUrl={r.photo_url} />
-                        <span className="transport-name">{r.transport_name}</span>
-                      </span>
-                    </td>
-                    <td className="city wrap-cell">
-                      <CompactList items={r.service_cities} />
-                    </td>
-                    <td className={r.pincode ? "pin wrap-cell" : "na"}><PincodeSummary pins={splitPincodes(r.pincode)} /></td>
-                    <td className={r.contact_number ? "mobile" : "na"}>{r.contact_number || NA}</td>
-                    <td>
-                      <StatusBadge status={r.status} />
-                    </td>
-                    <td className="muted">{deriveTransportType(r.transport_name)}</td>
-                    <td className="cell-actions">
-                      <button type="button" className="btn btn-soft btn-sm" onClick={() => onViewDetails(r)}>
-                        View Profile
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {message && <p className="foot-note">{message}</p>}
+      {message && <p className="hint">{message}</p>}
       <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={onPageChange} />
     </section>
   );

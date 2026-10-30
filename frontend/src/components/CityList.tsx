@@ -7,7 +7,7 @@ export function CompactList({ items, max = 3 }: { items?: string[] | null; max?:
   return (
     <span className="compact-list" title={items.join(", ")}>
       {items.slice(0, max).join(", ")}
-      {rest > 0 && <span className="more-count">+{rest} more</span>}
+      {rest > 0 && <span className="more">+{rest} more</span>}
     </span>
   );
 }
@@ -27,14 +27,19 @@ export const splitPincodes = (value: string | null | undefined): string[] =>
 /** Admin-entered approx. charge per box, e.g. "75.50" -> "₹75.50"; null when not set. */
 export const formatCharge = (value: string | null | undefined): string | null => (value ? `₹${value}` : null);
 
-/** Every service city, as chips (transporter details). */
-export function CityChips({ cities }: { cities?: string[] | null }) {
-  if (!cities || cities.length === 0) return <p className="na">{NA}</p>;
+/** Every item of a list as chips (the profile's Coverage tab). */
+export function ChipList({ items, label }: { items?: string[] | null; label: string }) {
+  if (!items || items.length === 0) return <p className="na">{NA}</p>;
   return (
-    <ul className="city-chips" aria-label="Service cities">
-      {cities.map((c) => (
+    <ul className="chiplist" aria-label={label}>
+      {items.map((c) => (
         <li key={c}>{c}</li>
       ))}
     </ul>
   );
+}
+
+/** Every service city, as chips (transporter details). */
+export function CityChips({ cities }: { cities?: string[] | null }) {
+  return <ChipList items={cities} label="Service cities" />;
 }

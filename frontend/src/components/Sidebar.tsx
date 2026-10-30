@@ -1,64 +1,76 @@
-import { useTheme } from "../theme";
-import { MoonIcon, SearchIcon, SettingsIcon, SunIcon, TruckIcon, UsersIcon } from "./Icons";
+import type { ReactNode } from "react";
+import { ClockIcon, ListIcon, ProfileIcon, SearchIcon, SettingsIcon, TruckIcon } from "./Icons";
+import { personInitials } from "./ui";
 
-export type View = "search" | "manage" | "settings";
+export type View = "search" | "profile" | "manage" | "settings" | "activity";
 
 interface Props {
   view: View;
   isAdmin: boolean;
+  loginId: string | null;
   onNavigate: (view: View) => void;
 }
 
-/** Persistent navigation: a dark sidebar on desktop and a bottom tab bar on phones (CSS only, one
- * set of buttons). Only real destinations: Search, Manage Transporters (Admin only) and Settings,
- * plus a Light/Dark theme toggle (bottom of the sidebar; last item of the phone bar). */
-export default function Sidebar({ view, isAdmin, onNavigate }: Props) {
-  const { resolved, setTheme } = useTheme();
-  const toDark = resolved === "light";
-  const items = [
-    { id: "search" as const, label: "Search", short: "Search", icon: SearchIcon },
-    ...(isAdmin ? [{ id: "manage" as const, label: "Manage Transporters", short: "Manage", icon: UsersIcon, tag: "Admin" }] : []),
-    { id: "settings" as const, label: "Settings", short: "Settings", icon: SettingsIcon },
+interface Item {
+  id: View;
+  label: string;
+  short: string;
+  icon: ReactNode;
+  tag?: string;
+}
+
+/** Persistent navigation: the sidebar on desktop, and the same buttons as a bottom tab bar on
+ * phones (CSS only). Manage transporters is listed for the Admin only. */
+export default function Sidebar({ view, isAdmin, loginId, onNavigate }: Props) {
+  const workspace: Item[] = [
+    { id: "search", label: "Find transport", short: "Search", icon: <SearchIcon size={18} /> },
+    { id: "profile", label: "Transporter profile", short: "Profile", icon: <ProfileIcon size={18} /> },
+    ...(isAdmin ? [{ id: "manage" as const, label: "Manage transporters", short: "Manage", icon: <ListIcon size={18} /> }] : []),
   ];
+  const preferences: Item[] = [
+    { id: "settings", label: "Settings", short: "Settings", icon: <SettingsIcon size={18} /> },
+    { id: "activity", label: "Activity log", short: "Activity", icon: <ClockIcon size={18} /> },
+  ];
+
+  const button = ({ id, label, short, icon, tag }: Item) => (
+    <button key={id} type="button" aria-label={label} aria-current={view === id ? "page" : undefined}
+            className={view === id ? "active" : ""} onClick={() => onNavigate(id)}>
+      <span className="ico">{icon}</span>
+      <span className="nav-label">{label}</span>
+      <span className="nav-short">{short}</span>
+      {tag && <span className="nav-tag">{tag}</span>}
+    </button>
+  );
 
   return (
     <aside className="sidebar">
-      <a className="sidebar-brand" href="#top" aria-label="Transport Finder home">
-        <span className="brand-logo">
-          <TruckIcon size={20} />
-        </span>
-        <span className="brand-name">Transport Finder</span>
-      </a>
-
-      <p className="sidebar-label">Menu</p>
-      <nav className="sidebar-nav" aria-label="Primary">
-        {items.map(({ id, label, short, icon: Icon, tag }) => (
-          <button
-            key={id}
-            type="button"
-            aria-label={label}
-            aria-current={view === id ? "page" : undefined}
-            className={`sidebar-nav-item ${view === id ? "active" : ""}`}
-            onClick={() => onNavigate(id)}
-          >
-            <Icon size={20} />
-            <span className="nav-label">{label}</span>
-            <span className="nav-short">{short}</span>
-            {tag && <span className="nav-tag">{tag}</span>}
-          </button>
-        ))}
-        <button
-          type="button"
-          className="sidebar-nav-item theme-toggle"
-          aria-label={toDark ? "Switch to dark theme" : "Switch to light theme"}
-          title={toDark ? "Switch to dark theme" : "Switch to light theme"}
-          onClick={() => setTheme(toDark ? "dark" : "light")}
-        >
-          {toDark ? <MoonIcon size={20} /> : <SunIcon size={20} />}
-          <span className="nav-label">{toDark ? "Dark mode" : "Light mode"}</span>
-          <span className="nav-short">{toDark ? "Dark" : "Light"}</span>
-        </button>
+      <div className="brand">
+        <div className="brandmark" aria-hidden="true"><TruckIcon size={20} /></div>
+        <div>
+          <b>Transport Finder</b>
+          <small>DEODAP · OPERATIONS</small>
+        </div>
+      </div>
+      <nav className="navgroups" aria-label="Primary" style={{ display: "contents" }}>
+        <div className="navgroup">
+          <div className="navlabel">Workspace</div>
+          <div className="nav">{workspace.map(button)}</div>
+        </div>
+        <div className="navgroup">
+          <div className="navlabel">Preferences</div>
+          <div className="nav">{preferences.map(button)}</div>
+        </div>
       </nav>
+      <div className="sidefoot">
+        <div className="userpill">
+          <div className="avatar" aria-hidden="true">{personInitials(loginId)}</div>
+          <div style={{ minWidth: 0 }}>
+            <b>{loginId ?? "…"}</b>
+            <span>{isAdmin ? "Administrator" : "Standard user"}</span>
+          </div>
+        </div>
+        <p>Internal tool · DeoDap</p>
+      </div>
     </aside>
   );
 }

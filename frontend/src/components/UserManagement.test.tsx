@@ -16,23 +16,24 @@ afterEach(cleanup);
 async function login(role: "Admin" | "User", id: string, password: string) {
   const user = userEvent.setup();
   if (role === "User") await user.click(screen.getByRole("tab", { name: /User/ }));
-  await user.type(screen.getByPlaceholderText(`Enter ${role} ID`), id);
-  await user.type(screen.getByPlaceholderText("Enter Password"), password);
-  await user.click(screen.getByRole("button", { name: new RegExp(`Login as ${role}`) }));
+  await user.type(screen.getByPlaceholderText("Enter your login ID"), id);
+  await user.type(screen.getByPlaceholderText("Enter password"), password);
+  await user.click(screen.getByRole("button", { name: new RegExp(`Sign in as ${role}`) }));
   return user;
 }
 
 async function openUserManagement() {
   render(<App />);
   const user = await login("Admin", "Admin_deodap@123", "Admin@123");
-  await screen.findByText("Find Transporters Near You");
+  await screen.findByText("Find the right transporter.");
   await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByRole("tab", { name: "User management" }));
   const section = await screen.findByRole("region", { name: "User Management" });
-  await within(section).findByRole("list", { name: "Users" });
+  await within(section).findByRole("table", { name: "Users" });
   return { user, section };
 }
 
-const row = (section: HTMLElement, id: string) => within(section).getByRole("listitem", { name: `User ${id}` });
+const row = (section: HTMLElement, id: string) => within(section).getByRole("rowgroup", { name: `User ${id}` });
 
 async function addUser(user: ReturnType<typeof userEvent.setup>, section: HTMLElement, id: string, pw = "Password1") {
   await user.click(within(section).getByRole("button", { name: /Add User/ }));
@@ -47,7 +48,7 @@ async function addUser(user: ReturnType<typeof userEvent.setup>, section: HTMLEl
 async function logout(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Account menu" }));
   await user.click(within(document.querySelector(".account-menu") as HTMLElement).getByRole("button", { name: /Log out/ }));
-  await screen.findByText("Welcome Back");
+  await screen.findByText("Welcome back");
 }
 
 describe("User Management access", () => {
@@ -60,7 +61,7 @@ describe("User Management access", () => {
   it("is not shown to a User, and nothing asks the server for the user list", async () => {
     render(<App />);
     const user = await login("User", "User_deodap@123", "User@123");
-    await screen.findByText("Find Transporters Near You");
+    await screen.findByText("Find the right transporter.");
     await user.click(screen.getByRole("button", { name: "Settings" }));
     await screen.findByRole("heading", { name: "Settings" });
     expect(screen.queryByRole("region", { name: "User Management" })).toBeNull();
@@ -81,8 +82,8 @@ describe("Adding Users", () => {
     for (const [id, pw] of [["ravi", "Ravi2026pw"], ["priya", "Priya2026pw"]]) {
       await logout(user);
       await login("User", id, pw);
-      expect(await screen.findByText("Find Transporters Near You")).toBeTruthy();
-      expect(screen.queryByRole("button", { name: "Manage Transporters" })).toBeNull(); // still User permissions
+      expect(await screen.findByText("Find the right transporter.")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Manage transporters" })).toBeNull(); // still User permissions
     }
   });
 
@@ -130,7 +131,7 @@ describe("Editing Users", () => {
     cleanup();
     render(<App />);
     await login("User", "ravi.k", "Password1");
-    expect(await screen.findByText("Find Transporters Near You")).toBeTruthy();
+    expect(await screen.findByText("Find the right transporter.")).toBeTruthy();
   });
 
   it("resets a User's password without needing the old one", async () => {
@@ -159,7 +160,7 @@ describe("Activating, deactivating and deleting", () => {
     await logout(user);
     await login("User", "ravi", "Password1");
     expect(await screen.findByText(/deactivated/)).toBeTruthy();
-    expect(screen.queryByText("Find Transporters Near You")).toBeNull();
+    expect(screen.queryByText("Find the right transporter.")).toBeNull();
 
     cleanup();
     await openUserManagement().then(async ({ user: u, section: s }) => {
@@ -168,7 +169,7 @@ describe("Activating, deactivating and deleting", () => {
       await logout(u);
     });
     await login("User", "ravi", "Password1");
-    expect(await screen.findByText("Find Transporters Near You")).toBeTruthy();
+    expect(await screen.findByText("Find the right transporter.")).toBeTruthy();
   });
 
   it("deleting asks for confirmation, then removes the User so they can't log in", async () => {
@@ -182,7 +183,7 @@ describe("Activating, deactivating and deleting", () => {
     await user.click(within(row(section, "ravi")).getByRole("button", { name: "Delete ravi" }));
     await user.click(within(row(section, "ravi")).getByRole("button", { name: /Delete User/ }));
     expect(await within(section).findByText('User "ravi" deleted.')).toBeTruthy();
-    await waitFor(() => expect(within(section).queryByRole("listitem", { name: "User ravi" })).toBeNull());
+    await waitFor(() => expect(within(section).queryByRole("rowgroup", { name: "User ravi" })).toBeNull());
     expect(backend.user("ravi")).toBeUndefined();
 
     await logout(user);
@@ -196,9 +197,9 @@ describe("A User's own account", () => {
     backend.users.push({ id: 7, login_id: "priya", password: "Priya2026pw", active: true });
     render(<App />);
     const user = await login("User", "priya", "Priya2026pw");
-    await screen.findByText("Find Transporters Near You");
+    await screen.findByText("Find the right transporter.");
     await user.click(screen.getByRole("button", { name: "Settings" }));
-    const acct = await screen.findByRole("region", { name: "Account" });
+    const acct = await screen.findByRole("tabpanel", { name: "Account" });
     expect(await within(acct).findByText("priya")).toBeTruthy(); // their own ID, not another User's
     await user.type(within(acct).getByLabelText("New User ID"), "priya.s");
     await user.type(within(acct).getByLabelText("Current password"), "Priya2026pw");
@@ -217,7 +218,7 @@ describe("Reset Password (Admin)", () => {
     for (const id of ["ravi", "User_deodap@123"]) {
       const r = row(section, id);
       expect(within(r).getByText(id)).toBeTruthy();
-      expect(within(r).getByRole("button", { name: `Reset password of ${id}` }).textContent).toContain("Reset Password");
+      expect(within(r).getByRole("button", { name: `Reset password of ${id}` }).textContent).toContain("Reset password");
     }
     expect(section.textContent).not.toContain("Secret2026x");
     expect(section.textContent).not.toContain("User@123");
@@ -274,9 +275,10 @@ describe("Reset Password (Admin)", () => {
   it("the User can still change their own password in Security", async () => {
     render(<App />);
     const user = await login("User", "User_deodap@123", "User@123");
-    await screen.findByText("Find Transporters Near You");
+    await screen.findByText("Find the right transporter.");
     await user.click(screen.getByRole("button", { name: "Settings" }));
-    const sec = await screen.findByRole("region", { name: "Security" });
+    await user.click(screen.getByRole("tab", { name: "Security" }));
+    const sec = await screen.findByRole("tabpanel", { name: "Security" });
     await user.type(within(sec).getByLabelText("Current password"), "User@123");
     await user.type(within(sec).getByLabelText("New password"), "Mine2026x");
     await user.type(within(sec).getByLabelText("Confirm new password"), "Mine2026x");

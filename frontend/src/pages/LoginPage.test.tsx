@@ -10,26 +10,27 @@ beforeEach(() => {
 });
 
 describe("LoginPage", () => {
-  it("defaults to the Admin tab with Admin ID / Login as Admin", () => {
+  it("defaults to the Admin tab with a Login ID field and Sign in as Admin", () => {
     render(<LoginPage onLogin={vi.fn()} />);
-    expect(screen.getByText("Admin ID")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Login as Admin/ })).toBeTruthy();
-    expect(screen.getByPlaceholderText("Enter Admin ID")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Admin/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByLabelText("Login ID")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Sign in as Admin/ })).toBeTruthy();
+    expect(screen.getByPlaceholderText("Enter your login ID")).toBeTruthy();
   });
 
-  it("switching to the User tab changes the label and button to User", async () => {
+  it("switching to the User tab changes the button to User", async () => {
     const user = userEvent.setup();
     render(<LoginPage onLogin={vi.fn()} />);
     await user.click(screen.getByRole("tab", { name: /User/ }));
-    expect(screen.getByText("User ID")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Login as User/ })).toBeTruthy();
-    expect(screen.getByPlaceholderText("Enter User ID")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /User/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("button", { name: /Sign in as User/ })).toBeTruthy();
+    expect(screen.getByPlaceholderText("Enter your login ID")).toBeTruthy();
   });
 
   it("password is hidden by default and the eye button toggles it to plain text", async () => {
     const user = userEvent.setup();
     render(<LoginPage onLogin={vi.fn()} />);
-    const password = screen.getByPlaceholderText("Enter Password") as HTMLInputElement;
+    const password = screen.getByPlaceholderText("Enter password") as HTMLInputElement;
     expect(password.type).toBe("password");
     await user.click(screen.getByRole("button", { name: /show password/i }));
     expect(password.type).toBe("text");
@@ -41,7 +42,7 @@ describe("LoginPage", () => {
     const onLogin = vi.fn();
     const user = userEvent.setup();
     render(<LoginPage onLogin={onLogin} />);
-    await user.click(screen.getByRole("button", { name: /Login as Admin/ }));
+    await user.click(screen.getByRole("button", { name: /Sign in as Admin/ }));
     expect(onLogin).not.toHaveBeenCalled();
     expect(screen.getByText(/Enter both your ID and password/)).toBeTruthy();
   });
@@ -50,9 +51,9 @@ describe("LoginPage", () => {
     const onLogin = vi.fn();
     const user = userEvent.setup();
     render(<LoginPage onLogin={onLogin} />);
-    await user.type(screen.getByPlaceholderText("Enter Admin ID"), "someone");
-    await user.type(screen.getByPlaceholderText("Enter Password"), "anything");
-    await user.click(screen.getByRole("button", { name: /Login as Admin/ }));
+    await user.type(screen.getByPlaceholderText("Enter your login ID"), "someone");
+    await user.type(screen.getByPlaceholderText("Enter password"), "anything");
+    await user.click(screen.getByRole("button", { name: /Sign in as Admin/ }));
     expect(await screen.findByText("Invalid ID or password")).toBeTruthy();
     expect(onLogin).not.toHaveBeenCalled();
   });
@@ -61,9 +62,9 @@ describe("LoginPage", () => {
     const onLogin = vi.fn();
     const user = userEvent.setup();
     render(<LoginPage onLogin={onLogin} />);
-    await user.type(screen.getByPlaceholderText("Enter Admin ID"), "User_deodap@123");
-    await user.type(screen.getByPlaceholderText("Enter Password"), "User@123");
-    await user.click(screen.getByRole("button", { name: /Login as Admin/ }));
+    await user.type(screen.getByPlaceholderText("Enter your login ID"), "User_deodap@123");
+    await user.type(screen.getByPlaceholderText("Enter password"), "User@123");
+    await user.click(screen.getByRole("button", { name: /Sign in as Admin/ }));
     expect(await screen.findByText("Invalid ID or password")).toBeTruthy();
     expect(onLogin).not.toHaveBeenCalled();
   });
@@ -73,9 +74,9 @@ describe("LoginPage", () => {
     const user = userEvent.setup();
     render(<LoginPage onLogin={onLogin} />);
     await user.click(screen.getByRole("tab", { name: /User/ }));
-    await user.type(screen.getByPlaceholderText("Enter User ID"), "User_deodap@123");
-    await user.type(screen.getByPlaceholderText("Enter Password"), "User@123");
-    await user.click(screen.getByRole("button", { name: /Login as User/ }));
+    await user.type(screen.getByPlaceholderText("Enter your login ID"), "User_deodap@123");
+    await user.type(screen.getByPlaceholderText("Enter password"), "User@123");
+    await user.click(screen.getByRole("button", { name: /Sign in as User/ }));
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith("user", expect.any(String)));
   });
 
@@ -83,9 +84,9 @@ describe("LoginPage", () => {
     const onLogin = vi.fn();
     const user = userEvent.setup();
     render(<LoginPage onLogin={onLogin} />);
-    await user.type(screen.getByPlaceholderText("Enter Admin ID"), "Admin_deodap@123");
-    await user.type(screen.getByPlaceholderText("Enter Password"), "Admin@123");
-    await user.click(screen.getByRole("button", { name: /Login as Admin/ }));
+    await user.type(screen.getByPlaceholderText("Enter your login ID"), "Admin_deodap@123");
+    await user.type(screen.getByPlaceholderText("Enter password"), "Admin@123");
+    await user.click(screen.getByRole("button", { name: /Sign in as Admin/ }));
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith("admin", expect.any(String)));
   });
 });

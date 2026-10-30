@@ -1,4 +1,5 @@
 import { ReactNode, useEffect } from "react";
+import { XIcon } from "./Icons";
 
 interface Props {
   label: string;
@@ -22,10 +23,25 @@ export default function Modal({ label, onClose, children }: Props) {
   }, [onClose]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="overlay" onClick={onClose}>
       <div className="modal" role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
+    </div>
+  );
+}
+
+/** The design's modal header: title, optional line under it, and the ✕ button. */
+export function ModalHead({ title, sub, onClose }: { title: string; sub?: string; onClose: () => void }) {
+  return (
+    <div className="modalhead">
+      <div>
+        <h2>{title}</h2>
+        {sub && <p>{sub}</p>}
+      </div>
+      <button type="button" className="close" aria-label="Close" onClick={onClose}>
+        <XIcon size={16} />
+      </button>
     </div>
   );
 }

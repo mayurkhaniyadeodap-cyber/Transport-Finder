@@ -1,7 +1,5 @@
-import { FormEvent, ReactNode, useEffect, useState } from "react";
-import {
-  AlertIcon, CheckCircleIcon, LockIcon, LogOutIcon, MonitorIcon, MoonIcon, ShieldIcon, SlidersIcon, SunIcon, UserIcon, UsersIcon,
-} from "../components/Icons";
+import { FormEvent, useEffect, useState } from "react";
+import { AlertIcon, CheckCircleIcon, EyeIcon, EyeOffIcon, LogOutIcon, MonitorIcon, MoonIcon, SunIcon } from "../components/Icons";
 import UserManagement from "../components/UserManagement";
 import {
   Account, getAccount, PAGE_SIZES, Preferences, savePreferences, SearchTypePreference, SessionExpiredError, updateAccount,
@@ -23,6 +21,8 @@ const THEMES: { id: ThemeChoice; label: string; icon: typeof SunIcon }[] = [
   { id: "system", label: "System", icon: MonitorIcon },
 ];
 
+type Tab = "account" | "appearance" | "preferences" | "security" | "users";
+
 interface Props {
   role: Role;
   token: string;
@@ -30,27 +30,13 @@ interface Props {
   onPreferencesSaved: (p: Preferences) => void;
   onLogout: () => void;
   onSessionExpired: () => void;
-}
-
-function Section({ id, icon, title, sub, children }: { id: string; icon: ReactNode; title: string; sub: string; children: ReactNode }) {
-  return (
-    <section className="card settings-section" id={id} aria-labelledby={`${id}-title`}>
-      <header className="settings-section-head">
-        <span className="tile-icon tone-blue">{icon}</span>
-        <div>
-          <h3 id={`${id}-title`}>{title}</h3>
-          <p>{sub}</p>
-        </div>
-      </header>
-      <div className="settings-section-body">{children}</div>
-    </section>
-  );
+  onAccountChanged?: (a: Account) => void;
 }
 
 function Status({ error, success }: { error: string | null; success: string | null }) {
   if (error) {
     return (
-      <div className="alert alert-error" role="alert">
+      <div className="alert error" role="alert">
         <AlertIcon size={16} />
         <span>{error}</span>
       </div>
@@ -58,7 +44,7 @@ function Status({ error, success }: { error: string | null; success: string | nu
   }
   if (success) {
     return (
-      <div className="alert alert-success" role="status">
+      <div className="alert success" role="status">
         <CheckCircleIcon size={16} />
         <span>{success}</span>
       </div>
@@ -88,10 +74,11 @@ function useSubmit(onSessionExpired: () => void) {
   return { busy, error, success, run, setError };
 }
 
-export default function SettingsPage({ role, token, preferences, onPreferencesSaved, onLogout, onSessionExpired }: Props) {
+export default function SettingsPage({ role, token, preferences, onPreferencesSaved, onLogout, onSessionExpired, onAccountChanged }: Props) {
   const isAdmin = role === "admin";
   const idLabel = isAdmin ? "Admin ID" : "User ID";
   const [account, setAccount] = useState<Account | null>(null);
+  const [tab, setTab] = useState<Tab>("account");
 
   useEffect(() => {
     getAccount(token).then(setAccount).catch((e) => {
@@ -99,66 +86,119 @@ export default function SettingsPage({ role, token, preferences, onPreferencesSa
     });
   }, [token, onSessionExpired]);
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "account", label: "Account" },
+    { id: "appearance", label: "Appearance" },
+    { id: "preferences", label: "Search preferences" },
+    { id: "security", label: "Security" },
+    ...(isAdmin ? [{ id: "users" as const, label: "User management" }] : []),
+  ];
+  const accountChanged = (a: Account) => {
+    setAccount(a);
+    onAccountChanged?.(a);
+  };
+
   return (
-    <div className="settings-page">
-      <div className="page-header">
+    <section>
+      <div className="pagehead">
         <div>
-          <h2>Settings</h2>
-          <p>Your account, appearance, search preferences and security.</p>
+          <div className="eyebrow">Preferences</div>
+          <h1 className="h1">Settings</h1>
+          <p className="sub">Manage your account and workspace experience.</p>
         </div>
       </div>
 
-      <div className="settings-grid">
-        <Section id="account" icon={<UserIcon size={20} />} title="Account" sub="Who you're signed in as, and your sign-in ID.">
-          <dl className="settings-facts">
-            <div>
-              <dt>Signed in as</dt>
-              <dd>
-                <span className={`role-pill ${isAdmin ? "role-admin" : "role-user"}`}>{isAdmin ? "Admin" : "User"}</span>
-                <span className="muted small">{isAdmin ? "Search and manage transporters" : "Search and view transporters"}</span>
-              </dd>
-            </div>
-            <div>
-              <dt>Current {idLabel}</dt>
-              <dd className="mono">{account?.login_id ?? "…"}</dd>
-            </div>
-          </dl>
-          <ChangeIdForm idLabel={idLabel} token={token} onSessionExpired={onSessionExpired} onChanged={setAccount} />
-        </Section>
-
-        {isAdmin && (
-          <Section id="users" icon={<UsersIcon size={20} />} title="User Management"
-                   sub="Admin only. Add Users, change their ID, reset passwords, activate, deactivate or delete.">
-            <UserManagement token={token} onSessionExpired={onSessionExpired} />
-          </Section>
-        )}
-
-        <Section id="appearance" icon={<SunIcon size={20} />} title="Appearance" sub="Saved in this browser and kept after a restart.">
-          <ThemePicker />
-        </Section>
-
-        <Section id="preferences" icon={<SlidersIcon size={20} />} title="Preferences"
-                 sub={isAdmin ? "Search defaults for everyone using Transport Finder." : "Search defaults, set by the Admin."}>
-          {isAdmin
-            ? <PreferencesForm token={token} preferences={preferences} onSaved={onPreferencesSaved} onSessionExpired={onSessionExpired} />
-            : <PreferencesView preferences={preferences} />}
-        </Section>
-
-        <Section id="security" icon={<ShieldIcon size={20} />} title="Security" sub="Change your password or sign out.">
-          <ChangePasswordForm token={token} onSessionExpired={onSessionExpired} />
-          <div className="settings-divider" />
-          <div className="settings-row">
-            <div>
-              <p className="settings-row-title">Log out</p>
-              <p className="hint">End this session on this browser.</p>
-            </div>
-            <button type="button" className="btn btn-outline" onClick={onLogout}>
-              <LogOutIcon size={16} /> Log out
+      <div className="panel">
+        <div className="tabs" role="tablist" aria-label="Settings sections">
+          {tabs.map((t) => (
+            <button key={t.id} type="button" role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id} aria-controls={`panel-${t.id}`}
+                    className={tab === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
+              {t.label}
             </button>
-          </div>
-        </Section>
+          ))}
+        </div>
+
+        <div className="tabpanel" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+          {tab === "account" && (
+            <>
+              <h3>Account details</h3>
+              <p className="sub">Who you're signed in as, and your sign-in ID.</p>
+              <dl className="facts">
+                <div>
+                  <dt>Role</dt>
+                  <dd>
+                    <span className="tag role-pill">{isAdmin ? "Admin" : "User"}</span>
+                    <span className="muted small">{isAdmin ? "Search and manage transporters" : "Search and view transporters"}</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Current {idLabel}</dt>
+                  <dd className="mono">{account?.login_id ?? "…"}</dd>
+                </div>
+              </dl>
+              <ChangeIdForm idLabel={idLabel} token={token} onSessionExpired={onSessionExpired} onChanged={accountChanged} />
+            </>
+          )}
+
+          {tab === "appearance" && (
+            <>
+              <h3>Appearance</h3>
+              <p className="sub">Choose how Transport Finder looks on this device. Saved in this browser.</p>
+              <ThemePicker />
+            </>
+          )}
+
+          {tab === "preferences" && (
+            <>
+              <h3>Search preferences</h3>
+              <p className="sub">{isAdmin ? "Search defaults for everyone using Transport Finder." : "Search defaults, set by the Admin."}</p>
+              {isAdmin
+                ? <PreferencesForm token={token} preferences={preferences} onSaved={onPreferencesSaved} onSessionExpired={onSessionExpired} />
+                : <PreferencesView preferences={preferences} />}
+            </>
+          )}
+
+          {tab === "security" && (
+            <>
+              <h3>Change password</h3>
+              <p className="sub">At least 8 characters, with a letter and a number.</p>
+              <ChangePasswordForm token={token} onSessionExpired={onSessionExpired} />
+              <div className="divider">
+                <h3>Log out</h3>
+                <p className="sub">End this session on this browser.</p>
+                <div className="actions" style={{ justifyContent: "flex-start" }}>
+                  <button type="button" className="btn danger" onClick={onLogout}>
+                    <LogOutIcon size={16} /> Log out
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === "users" && isAdmin && (
+            <section aria-label="User Management">
+              <h3>User management</h3>
+              <p className="sub">Manage access to the internal directory: add Users, change their ID, reset passwords, activate, deactivate or delete.</p>
+              <UserManagement token={token} onSessionExpired={onSessionExpired} />
+            </section>
+          )}
+        </div>
       </div>
-    </div>
+    </section>
+  );
+}
+
+function PasswordInput({ id, value, onChange, autoComplete }: {
+  id: string; value: string; onChange: (v: string) => void; autoComplete: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="pw-wrap">
+      <input id={id} type={show ? "text" : "password"} value={value} onChange={(e) => onChange(e.target.value)} autoComplete={autoComplete} />
+      <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide password" : "Show password"}>
+        {show ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+      </button>
+    </span>
   );
 }
 
@@ -184,21 +224,20 @@ function ChangeIdForm({ idLabel, token, onSessionExpired, onChanged }: {
   };
 
   return (
-    <form className="settings-form" onSubmit={submit} noValidate aria-label={`Change ${idLabel}`}>
-      <p className="settings-form-title">Change {idLabel}</p>
-      <div className="form-grid">
-        <label className="field">
-          <span className="field-label">New {idLabel}</span>
-          <input className="edit-input" value={newId} onChange={(e) => setNewId(e.target.value)} autoComplete="username" />
-        </label>
-        <label className="field">
-          <span className="field-label">Current password</span>
-          <input className="edit-input" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
-        </label>
+    <form onSubmit={submit} noValidate aria-label={`Change ${idLabel}`}>
+      <div className="formgrid">
+        <div className="field">
+          <label htmlFor="new-id">New {idLabel}</label>
+          <input id="new-id" value={newId} onChange={(e) => setNewId(e.target.value)} autoComplete="username" />
+        </div>
+        <div className="field">
+          <label htmlFor="id-current-pw">Current password</label>
+          <PasswordInput id="id-current-pw" value={current} onChange={setCurrent} autoComplete="current-password" />
+        </div>
       </div>
       <Status error={error} success={success} />
-      <div className="settings-actions">
-        <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Saving…" : `Change ${idLabel}`}</button>
+      <div className="actions">
+        <button type="submit" className="btn" disabled={busy}>{busy ? "Saving…" : `Change ${idLabel}`}</button>
       </div>
     </form>
   );
@@ -226,44 +265,37 @@ function ChangePasswordForm({ token, onSessionExpired }: { token: string; onSess
   };
 
   return (
-    <form className="settings-form" onSubmit={submit} noValidate aria-label="Change password">
-      <p className="settings-form-title">
-        <LockIcon size={16} /> Change password
-      </p>
-      <div className="form-stack">
-        <label className="field">
-          <span className="field-label">Current password</span>
-          <input className="edit-input" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
-        </label>
-        <div className="form-grid">
-          <label className="field">
-            <span className="field-label">New password</span>
-            <input className="edit-input" type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
-          </label>
-          <label className="field">
-            <span className="field-label">Confirm new password</span>
-            <input className="edit-input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
-          </label>
+    <form onSubmit={submit} noValidate aria-label="Change password">
+      <div className="formgrid">
+        <div className="field full">
+          <label htmlFor="pw-current">Current password</label>
+          <PasswordInput id="pw-current" value={current} onChange={setCurrent} autoComplete="current-password" />
         </div>
-        <p className="hint">At least 8 characters, with a letter and a number.</p>
+        <div className="field">
+          <label htmlFor="pw-new">New password</label>
+          <PasswordInput id="pw-new" value={next} onChange={setNext} autoComplete="new-password" />
+        </div>
+        <div className="field">
+          <label htmlFor="pw-confirm">Confirm new password</label>
+          <PasswordInput id="pw-confirm" value={confirm} onChange={setConfirm} autoComplete="new-password" />
+        </div>
       </div>
       <Status error={error} success={success} />
-      <div className="settings-actions">
-        <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Saving…" : "Change password"}</button>
+      <div className="actions">
+        <button type="submit" className="btn" disabled={busy}>{busy ? "Saving…" : "Change password"}</button>
       </div>
     </form>
   );
 }
 
 function ThemePicker() {
-  // Shared with the sidebar's Light/Dark toggle, so the two always show the same choice.
+  // Shared with the top bar's Light/Dark toggle, so the two always show the same choice.
   const { choice: theme, setTheme: choose } = useTheme();
   return (
     <div className="theme-options" role="radiogroup" aria-label="Theme">
       {THEMES.map(({ id, label, icon: Icon }) => (
-        <button key={id} type="button" role="radio" aria-checked={theme === id}
-                className={`theme-option ${theme === id ? "active" : ""}`} onClick={() => choose(id)}>
-          <Icon size={20} />
+        <button key={id} type="button" role="radio" aria-checked={theme === id} className="btn secondary" onClick={() => choose(id)}>
+          <Icon size={16} />
           <span>{label}</span>
         </button>
       ))}
@@ -273,7 +305,7 @@ function ThemePicker() {
 
 function PreferencesView({ preferences }: { preferences: Preferences }) {
   return (
-    <dl className="settings-facts">
+    <dl className="facts">
       <div>
         <dt>Default pincode</dt>
         <dd>{preferences.default_pincode || <span className="na">None</span>}</dd>
@@ -314,32 +346,32 @@ function PreferencesForm({ token, preferences, onSaved, onSessionExpired }: {
   };
 
   return (
-    <form className="settings-form" onSubmit={submit} noValidate aria-label="Search preferences">
-      <div className="form-grid">
+    <form onSubmit={submit} noValidate aria-label="Search preferences">
+      <div className="formgrid">
         <div className="field">
-          <label className="field-label" htmlFor="pref-pincode">Default pincode</label>
-          <input id="pref-pincode" className="edit-input mono" value={pincode} onChange={(e) => setPincode(e.target.value)} inputMode="numeric"
+          <label htmlFor="pref-search-type">Default search type</label>
+          <select id="pref-search-type" value={searchType} aria-describedby="pref-search-type-hint"
+                  onChange={(e) => setSearchType(e.target.value as SearchTypePreference)}>
+            {(Object.keys(SEARCH_TYPE_LABELS) as SearchTypePreference[]).map((t) => <option key={t} value={t}>{SEARCH_TYPE_LABELS[t]}</option>)}
+          </select>
+          <span className="hint" id="pref-search-type-hint">How typed text is searched. A 6-digit number is always a pincode.</span>
+        </div>
+        <div className="field">
+          <label htmlFor="pref-per-page">Results per page</label>
+          <select id="pref-per-page" value={perPage} onChange={(e) => setPerPage(Number(e.target.value))}>
+            {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="pref-pincode">Default pincode</label>
+          <input id="pref-pincode" className="mono" value={pincode} onChange={(e) => setPincode(e.target.value)} inputMode="numeric"
                  maxLength={6} placeholder="e.g. 360003" aria-describedby="pref-pincode-hint" />
           <span className="hint" id="pref-pincode-hint">Pre-filled in the search box. Leave empty for none.</span>
         </div>
-        <label className="field">
-          <span className="field-label">Results per page</span>
-          <select className="edit-input" value={perPage} onChange={(e) => setPerPage(Number(e.target.value))}>
-            {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </label>
-      </div>
-      <div className="field">
-        <label className="field-label" htmlFor="pref-search-type">Default search type</label>
-        <select id="pref-search-type" className="edit-input" value={searchType} aria-describedby="pref-search-type-hint"
-                onChange={(e) => setSearchType(e.target.value as SearchTypePreference)}>
-          {(Object.keys(SEARCH_TYPE_LABELS) as SearchTypePreference[]).map((t) => <option key={t} value={t}>{SEARCH_TYPE_LABELS[t]}</option>)}
-        </select>
-        <span className="hint" id="pref-search-type-hint">How typed text is searched. A 6-digit number is always a pincode, and picking a suggestion always uses its own type.</span>
       </div>
       <Status error={error} success={success} />
-      <div className="settings-actions">
-        <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? "Saving…" : "Save preferences"}</button>
+      <div className="actions">
+        <button type="submit" className="btn" disabled={busy}>{busy ? "Saving…" : "Save preferences"}</button>
       </div>
     </form>
   );

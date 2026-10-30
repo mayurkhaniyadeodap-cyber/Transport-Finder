@@ -1,6 +1,6 @@
 """Session checks shared by the API routes (the same sign-in sessions Settings uses; see
 services/accounts.py). A request carries its session as `Authorization: Bearer <token>`."""
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 
 from ..services import accounts
 
@@ -26,6 +26,13 @@ def require_admin(who: accounts.Identity = Depends(current_identity)) -> account
     return who
 
 
-def admin_only_router(_: accounts.Identity = Depends(require_admin)) -> None:
+def admin_only_router(who: accounts.Identity = Depends(require_admin)) -> accounts.Identity:
     """Router-level guard for everything that changes (or lists for editing) transporter data:
-    /api/manage/* and /api/overrides/*. Search stays open, as before."""
+    /api/manage/* and /api/overrides/*. Search stays open, as before. Endpoints that record an
+    Activity Log entry depend on it again to get the Admin (FastAPI runs it once per request)."""
+    return who
+
+
+def client_ip(request: Request) -> str | None:
+    """The caller's address for the Activity Log (uvicorn --proxy-headers takes it from Nginx)."""
+    return request.client.host if request.client else None

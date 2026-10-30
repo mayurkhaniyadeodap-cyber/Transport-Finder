@@ -1,18 +1,20 @@
 import { useSyncExternalStore } from "react";
 
-// Appearance: Light, Dark or System (follows the device). A per-browser choice, so it's kept in
-// localStorage (survives a browser restart) rather than the shared database. Settings > Appearance
-// and the sidebar toggle both go through setTheme()/useTheme(), so they always agree.
+// Appearance: Dark (the default -- the "Midnight Ops" design), Light, or System (follows the
+// device). A per-browser choice, so it's kept in localStorage (survives a browser restart) rather
+// than the shared database. Settings > Appearance and the top-bar toggle both go through
+// setTheme()/useTheme(), so they always agree.
 export type ThemeChoice = "light" | "dark" | "system";
 
 const KEY = "transportFinder.theme";
 const THEMES: ThemeChoice[] = ["light", "dark", "system"];
-let memory: ThemeChoice = "system"; // used only when storage is blocked
+export const DEFAULT_THEME: ThemeChoice = "dark";
+let memory: ThemeChoice = DEFAULT_THEME; // used only when storage is blocked
 
 export function loadTheme(): ThemeChoice {
   try {
     const v = localStorage.getItem(KEY) as ThemeChoice | null;
-    return v && THEMES.includes(v) ? v : "system";
+    return v && THEMES.includes(v) ? v : DEFAULT_THEME;
   } catch {
     return memory;
   }

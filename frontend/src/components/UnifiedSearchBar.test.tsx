@@ -80,8 +80,8 @@ describe("UnifiedSearchBar autocomplete", () => {
   it("does not re-suggest for a Popular Searches term once it's clicked", async () => {
     const user = userEvent.setup();
     const { props, rerender } = setup();
-    await user.click(screen.getByRole("button", { name: "Rajkot" }));
-    rerender(<UnifiedSearchBar {...props} value="Rajkot" />);
+    await user.click(screen.getByRole("button", { name: "Rajkot · 360001" }));
+    rerender(<UnifiedSearchBar {...props} value="360001" />);
     await new Promise((r) => setTimeout(r, 350));
     expect(suggestTransport).not.toHaveBeenCalled();
   });
@@ -94,14 +94,14 @@ describe("UnifiedSearchBar autocomplete", () => {
   it("clicking a Popular Searches tag calls onQuickPick with that term", async () => {
     const user = userEvent.setup();
     const { props } = setup();
-    await user.click(screen.getByRole("button", { name: "Rajkot" }));
-    expect(props.onQuickPick).toHaveBeenCalledWith("Rajkot");
+    await user.click(screen.getByRole("button", { name: "Rajkot · 360001" }));
+    expect(props.onQuickPick).toHaveBeenCalledWith("360001"); // the "Rajkot · 360001" chip searches its pincode
   });
 
   it("submitting the form without picking a suggestion calls onSearch", async () => {
     const user = userEvent.setup();
     const { props } = setup({ value: "360003" });
-    await user.click(screen.getByRole("button", { name: /Search Transport/ }));
+    await user.click(screen.getByRole("button", { name: /Search results/ }));
     expect(props.onSearch).toHaveBeenCalled();
     expect(props.onSuggestionPick).not.toHaveBeenCalled();
   });
@@ -110,7 +110,7 @@ describe("UnifiedSearchBar autocomplete", () => {
     const user = userEvent.setup();
     setup({ value: "" });
     expect(screen.queryByText(/Enter a pincode/)).toBeNull();
-    await user.click(screen.getByRole("button", { name: /Search Transport/ }));
+    await user.click(screen.getByRole("button", { name: /Search results/ }));
     expect(await screen.findByText(/Enter a pincode, city, state or transporter name\./)).toBeTruthy();
   });
 

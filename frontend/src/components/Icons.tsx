@@ -363,3 +363,31 @@ export const UsersIcon = ({ size }: { size?: number }) => (
     <path d="M2.5 20c.6-3.5 3.3-5.5 6.5-5.5s5.9 2 6.5 5.5M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2 .7 3.2 2.5 3.5 5.2" />
   </Svg>
 );
+
+export const ClockIcon = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Svg>
+);
+
+export const ListIcon = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M3 9h18M8 9v11" />
+  </Svg>
+);
+
+export const ProfileIcon = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <circle cx="9" cy="11" r="2.2" />
+    <path d="M5.8 16.5c.6-1.6 1.8-2.4 3.2-2.4s2.6.8 3.2 2.4M14.5 10h3.5M14.5 13.5h3.5" />
+  </Svg>
+);
+
+export const RowsIcon = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <path d="M4 6h16M4 12h16M4 18h16" />
+  </Svg>
+);

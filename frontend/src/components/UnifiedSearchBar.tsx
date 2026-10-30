@@ -1,14 +1,21 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { suggestTransport, Suggestion, SuggestionType } from "../services/api";
-import { CityIcon, PincodeIcon, SearchIcon, StateIcon, TruckBadgeIcon } from "./Icons";
+import { ArrowRightIcon, SearchIcon } from "./Icons";
 
-const POPULAR = ["360003", "Rajkot", "Ahmedabad", "Gujarat", "Mumbai"];
+// Popular searches: what's searched, and how the chip reads.
+const POPULAR: { term: string; label: string }[] = [
+  { term: "360001", label: "Rajkot · 360001" },
+  { term: "380009", label: "Ahmedabad · 380009" },
+  { term: "395001", label: "Surat · 395001" },
+  { term: "Mumbai", label: "Mumbai" },
+  { term: "TCI Express", label: "TCI Express" },
+];
 
-const TYPE_META: Record<SuggestionType, { label: string; icon: typeof PincodeIcon }> = {
-  pincode: { label: "Pincode", icon: PincodeIcon },
-  city: { label: "City", icon: CityIcon },
-  state: { label: "State", icon: StateIcon },
-  transporter: { label: "Transporter", icon: TruckBadgeIcon },
+const TYPE_LABEL: Record<SuggestionType, string> = {
+  pincode: "Pincode",
+  city: "City",
+  state: "State",
+  transporter: "Transporter",
 };
 
 interface Props {
@@ -18,16 +25,15 @@ interface Props {
   onSearch: () => void;
   onQuickPick: (term: string) => void;
   onSuggestionPick: (s: Suggestion) => void;
-  compact?: boolean; // slim bar above results: no Popular tags, shorter button
-  // The value it mounts with was already searched (the hero and the results bar swap on search),
-  // so don't open suggestions for it until the user types again.
+  // The value it mounts with was already searched, so don't open suggestions for it until the
+  // user types again.
   valueAlreadySearched?: boolean;
 }
 
 /** One free-text box for Pincode/City/State/Transporter Name, with real-data autocomplete -- see
  * searchUnified()/searchByType() in searchDefaults.ts for how a value is routed to the existing
  * search API (free text guesses the type; picking a suggestion already knows it). */
-export default function UnifiedSearchBar({ value, loading, onChange, onSearch, onQuickPick, onSuggestionPick, compact, valueAlreadySearched }: Props) {
+export default function UnifiedSearchBar({ value, loading, onChange, onSearch, onQuickPick, onSuggestionPick, valueAlreadySearched }: Props) {
   const [touched, setTouched] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -110,70 +116,57 @@ export default function UnifiedSearchBar({ value, loading, onChange, onSearch, o
   };
 
   return (
-    <div className={`unified-search ${compact ? "compact" : ""}`} ref={boxRef}>
-      <div className="unified-search-field">
-        <form className="unified-search-box" onSubmit={submit} role="search" aria-label="Search transporters">
-          <span className="unified-search-icon">
-            <SearchIcon />
-          </span>
+    <div className="searchbox" ref={boxRef}>
+      <form className="searchline" onSubmit={submit} role="search" aria-label="Search transporters">
+        <div className="searchwrap">
+          <span className="searchglass"><SearchIcon size={18} /></span>
           <input
+            className="searchinput"
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={onKeyDown}
             onFocus={() => suggestions.length > 0 && setOpen(true)}
-            placeholder="Enter pincode, city, state or transporter name"
+            placeholder="Try 360001, Rajkot, Gujarat or TCI Express"
             aria-label="Pincode, city, state or transporter name"
             role="combobox"
             aria-expanded={open}
             aria-autocomplete="list"
             autoComplete="off"
           />
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? <span className="spinner spinner-sm" aria-hidden="true" /> : <SearchIcon size={18} />}
-            <span className="btn-text">{loading ? "Searching…" : compact ? "Search" : "Search Transport"}</span>
-          </button>
-        </form>
-
-        {open && suggestions.length > 0 && (
-          <ul className="suggest-list" role="listbox" aria-label="Suggestions">
-            {suggestions.map((s, i) => {
-              const meta = TYPE_META[s.type];
-              const Icon = meta.icon;
-              return (
+          {open && suggestions.length > 0 && (
+            <ul className="suggest" role="listbox" aria-label="Suggestions">
+              {suggestions.map((s, i) => (
                 <li key={`${s.type}-${s.value}`} role="option" aria-selected={i === highlight}>
                   <button
                     type="button"
-                    className={`suggest-item ${i === highlight ? "active" : ""}`}
+                    className={i === highlight ? "active" : ""}
                     onMouseDown={(e) => e.preventDefault()} // keep focus in the input so blur doesn't close this first
                     onClick={() => pick(s)}
                   >
-                    <span className="suggest-icon">
-                      <Icon size={16} />
-                    </span>
-                    <span className="suggest-value">{s.value}</span>
-                    <span className="suggest-type">{meta.label}</span>
+                    <span className="value">{s.value}</span>
+                    <span className="tag">{TYPE_LABEL[s.type]}</span>
                   </button>
                 </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      {touched && !value.trim() && (
-        <p className="unified-search-hint error">Enter a pincode, city, state or transporter name.</p>
-      )}
-
-      {!compact && (
-        <div className="popular-searches">
-          <span className="popular-searches-label">Popular Searches:</span>
-          {POPULAR.map((term) => (
-            <button key={term} type="button" className="popular-tag" onClick={() => quickPick(term)}>
-              {term}
-            </button>
-          ))}
+              ))}
+            </ul>
+          )}
         </div>
-      )}
+        <button type="submit" className="btn" disabled={loading}>
+          {loading ? <span className="spinner" aria-hidden="true" /> : null}
+          {loading ? "Searching…" : <>Search results <ArrowRightIcon size={16} /></>}
+        </button>
+      </form>
+
+      {touched && !value.trim() && <p className="search-hint">Enter a pincode, city, state or transporter name.</p>}
+
+      <div className="popular">
+        <b>Popular:</b>
+        {POPULAR.map(({ term, label }) => (
+          <button key={term} type="button" onClick={() => quickPick(term)}>
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

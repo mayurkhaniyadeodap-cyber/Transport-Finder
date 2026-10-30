@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
   addUser, deleteUser, listUsers, ManagedUser, SessionExpiredError, updateUser,
 } from "../services/settingsApi";
-import { AlertIcon, CheckCircleIcon, EyeIcon, EyeOffIcon, PencilIcon, PlusIcon, RotateCcwIcon, TrashIcon } from "./Icons";
+import { AlertIcon, CheckCircleIcon, EyeIcon, EyeOffIcon, PlusIcon, TrashIcon } from "./Icons";
 
 // Admin-only (the server refuses anyone else): add Users, change a User's ID, reset a password,
 // activate/deactivate, delete. Passwords go only to the API, which stores a hash.
@@ -64,12 +64,12 @@ export default function UserManagement({ token, onSessionExpired }: Props) {
 
   return (
     <div className="user-mgmt">
-      <div className="user-mgmt-head">
+      <div className="users-head">
         <p className="muted small">
           {users ? `${users.length} user${users.length === 1 ? "" : "s"} · ${activeCount} active` : "Loading users…"}
         </p>
         {!adding && (
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>
+          <button type="button" className="btn" onClick={() => setAdding(true)}>
             <PlusIcon size={14} /> Add User
           </button>
         )}
@@ -89,51 +89,62 @@ export default function UserManagement({ token, onSessionExpired }: Props) {
       )}
 
       {error && (
-        <div className="alert alert-error" role="alert">
+        <div className="alert error" role="alert">
           <AlertIcon size={16} />
           <span>{error}</span>
         </div>
       )}
       {notice && (
-        <div className="alert alert-success" role="status">
+        <div className="alert success" role="status">
           <CheckCircleIcon size={16} />
           <span>{notice}</span>
         </div>
       )}
 
-      {users && users.length === 0 && <p className="user-empty">No Users yet. Add one to let someone sign in with User access.</p>}
+      {users && users.length === 0 && <p className="empty">No Users yet. Add one to let someone sign in with User access.</p>}
 
       {users && users.length > 0 && (
-        <ul className="user-list" aria-label="Users">
-          {users.map((u) => (
-            <UserRow
-              key={u.id}
-              user={u}
-              onRename={async (login_id) => {
-                const r = await guard(() => updateUser(token, u.id, { login_id }));
-                if (r) await done(`User ID changed to "${r.login_id}".`);
-                return Boolean(r);
-              }}
-              onReset={async (password) => {
-                const r = await guard(() => updateUser(token, u.id, { password }));
-                if (r) await done(`Password reset for "${u.login_id}". They've been signed out and must use the new password.`);
-                return Boolean(r);
-              }}
-              onToggleActive={async () => {
-                const r = await guard(() => updateUser(token, u.id, { active: !u.active }));
-                if (r) await done(r.active ? `"${u.login_id}" activated.` : `"${u.login_id}" deactivated and signed out.`);
-              }}
-              onDelete={async () => {
-                const r = await guard(async () => {
-                  await deleteUser(token, u.id);
-                  return true;
-                });
-                if (r) await done(`User "${u.login_id}" deleted.`);
-                return Boolean(r);
-              }}
-            />
-          ))}
-        </ul>
+        <div className="tablewrap flat">
+          <table className="data" aria-label="Users">
+            <thead>
+              <tr>
+                <th scope="col">Login ID</th>
+                <th scope="col">Role</th>
+                <th scope="col">Status</th>
+                <th scope="col">Added</th>
+                <th scope="col" className="actions-cell">Actions</th>
+              </tr>
+            </thead>
+            {users.map((u) => (
+                <UserRow
+                  key={u.id}
+                  user={u}
+                  onRename={async (login_id) => {
+                    const r = await guard(() => updateUser(token, u.id, { login_id }));
+                    if (r) await done(`User ID changed to "${r.login_id}".`);
+                    return Boolean(r);
+                  }}
+                  onReset={async (password) => {
+                    const r = await guard(() => updateUser(token, u.id, { password }));
+                    if (r) await done(`Password reset for "${u.login_id}". They've been signed out and must use the new password.`);
+                    return Boolean(r);
+                  }}
+                  onToggleActive={async () => {
+                    const r = await guard(() => updateUser(token, u.id, { active: !u.active }));
+                    if (r) await done(r.active ? `"${u.login_id}" activated.` : `"${u.login_id}" deactivated and signed out.`);
+                  }}
+                  onDelete={async () => {
+                    const r = await guard(async () => {
+                      await deleteUser(token, u.id);
+                      return true;
+                    });
+                    if (r) await done(`User "${u.login_id}" deleted.`);
+                    return Boolean(r);
+                  }}
+                />
+            ))}
+          </table>
+        </div>
       )}
     </div>
   );
@@ -157,32 +168,32 @@ function AddUserForm({ onSubmit, onCancel }: { onSubmit: (id: string, pw: string
   };
 
   return (
-    <form className="user-form card-inset" onSubmit={submit} noValidate aria-label="Add User">
-      <p className="settings-form-title">Add User</p>
-      <div className="form-grid form-grid-3">
-        <label className="field">
-          <span className="field-label">User ID</span>
-          <input className="edit-input" value={id} onChange={(e) => setId(e.target.value)} autoComplete="off" autoFocus />
-        </label>
-        <label className="field">
-          <span className="field-label">Password</span>
-          <input className="edit-input" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" />
-        </label>
-        <label className="field">
-          <span className="field-label">Confirm password</span>
-          <input className="edit-input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
-        </label>
+    <form className="inline-form" onSubmit={submit} noValidate aria-label="Add User">
+      <h3>Add User</h3>
+      <div className="formgrid">
+        <div className="field">
+          <label htmlFor="new-user-id">User ID</label>
+          <input id="new-user-id" value={id} onChange={(e) => setId(e.target.value)} autoComplete="off" autoFocus />
+        </div>
+        <div className="field">
+          <label htmlFor="new-user-pw">Password</label>
+          <input id="new-user-pw" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" />
+        </div>
+        <div className="field">
+          <label htmlFor="new-user-confirm">Confirm password</label>
+          <input id="new-user-confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+        </div>
       </div>
       <p className="hint">At least 8 characters, with a letter and a number. Share it with the person privately.</p>
       {error && (
-        <div className="alert alert-error" role="alert">
+        <div className="alert error" role="alert">
           <AlertIcon size={16} />
           <span>{error}</span>
         </div>
       )}
-      <div className="settings-actions user-form-actions">
-        <button type="button" className="btn btn-outline btn-sm" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>{busy ? "Adding…" : "Add User"}</button>
+      <div className="actions">
+        <button type="button" className="ghost" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="btn" disabled={busy}>{busy ? "Adding…" : "Add User"}</button>
       </div>
     </form>
   );
@@ -237,92 +248,107 @@ function UserRow({ user, onRename, onReset, onToggleActive, onDelete }: {
     run(() => onReset(pw));
   };
 
+  const added = user.created_at
+    ? new Date(user.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    : "";
+
   return (
-    <li className={`user-row ${user.active ? "" : "is-inactive"}`} aria-label={`User ${user.login_id}`}>
-      <div className="user-row-main">
-        <div className="user-row-id">
-          <span className="mono user-login">{user.login_id}</span>
-          <span className={`badge ${user.active ? "badge-active" : "badge-inactive"}`}>{user.active ? "Active" : "Inactive"}</span>
-        </div>
-        <div className="user-row-actions">
-          <button type="button" className="icon-btn" aria-label={`Edit ID of ${user.login_id}`} title="Edit User ID" onClick={() => open("edit")}>
-            <PencilIcon size={16} />
+    // One <tbody> per User: their row, plus the edit/reset/delete panel under it when open.
+    <tbody aria-label={`User ${user.login_id}`}>
+      <tr className={user.active ? undefined : "muted-row"}>
+        <td><b className="mono">{user.login_id}</b></td>
+        <td>User</td>
+        <td><span className={`status ${user.active ? "" : "off"}`}>{user.active ? "Active" : "Inactive"}</span></td>
+        <td className="nowrap">{added}</td>
+        <td className="actions-cell">
+          <button type="button" className="linkbtn" aria-label={`Edit ID of ${user.login_id}`} title="Edit User ID" onClick={() => open("edit")}>
+            Edit
           </button>
-          <button type="button" className="btn btn-outline btn-sm" aria-label={`Reset password of ${user.login_id}`} onClick={() => open("reset")}>
-            <RotateCcwIcon size={14} /> Reset Password
+          <button type="button" className="linkbtn" aria-label={`Reset password of ${user.login_id}`} onClick={() => open("reset")}>
+            Reset password
           </button>
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => run(onToggleActive)} disabled={busy}>
+          <button type="button" className="linkbtn" onClick={() => run(onToggleActive)} disabled={busy}>
             {user.active ? "Deactivate" : "Activate"}
           </button>
-          <button type="button" className="icon-btn icon-btn-danger" aria-label={`Delete ${user.login_id}`} title="Delete User" onClick={() => open("delete")}>
-            <TrashIcon size={16} />
+          <button type="button" className="linkbtn danger" aria-label={`Delete ${user.login_id}`} title="Delete User" onClick={() => open("delete")}>
+            Delete
           </button>
-        </div>
-      </div>
+        </td>
+      </tr>
 
-      {mode === "edit" && (
-        <form className="user-row-panel" onSubmit={rename} noValidate aria-label={`Edit ID of ${user.login_id}`}>
-          <label className="field">
-            <span className="field-label">New User ID</span>
-            <input className="edit-input" value={newId} onChange={(e) => setNewId(e.target.value)} autoFocus />
-          </label>
-          <RowError error={error} />
-          <div className="user-form-actions">
-            <button type="button" className="btn btn-outline btn-sm" onClick={close}>Cancel</button>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>Save ID</button>
-          </div>
-        </form>
-      )}
+      {mode && (
+        <tr className="panel-row">
+          <td colSpan={5}>
+            {mode === "edit" && (
+              <form className="row-panel" onSubmit={rename} noValidate aria-label={`Edit ID of ${user.login_id}`}>
+                <div className="formgrid">
+                  <div className="field">
+                    <label htmlFor={`rename-${user.id}`}>New User ID</label>
+                    <input id={`rename-${user.id}`} value={newId} onChange={(e) => setNewId(e.target.value)} autoFocus />
+                  </div>
+                </div>
+                <RowError error={error} />
+                <div className="actions">
+                  <button type="button" className="ghost" onClick={close}>Cancel</button>
+                  <button type="submit" className="btn sm" disabled={busy}>Save ID</button>
+                </div>
+              </form>
+            )}
 
-      {mode === "reset" && (
-        <form className="user-row-panel" onSubmit={reset} noValidate aria-label={`Reset password of ${user.login_id}`}>
-          <p className="settings-form-title user-reset-title">Set a new password for <span className="mono">{user.login_id}</span></p>
-          <div className="form-grid">
-            <label className="field">
-              <span className="field-label">New password</span>
-              <input className="edit-input" type={showPw ? "text" : "password"} value={pw} onChange={(e) => setPw(e.target.value)}
-                     autoComplete="new-password" autoFocus />
-            </label>
-            <label className="field">
-              <span className="field-label">Confirm new password</span>
-              <input className="edit-input" type={showPw ? "text" : "password"} value={confirm} onChange={(e) => setConfirm(e.target.value)}
-                     autoComplete="new-password" />
-            </label>
-          </div>
-          <button type="button" className="link-btn show-pw-toggle" aria-pressed={showPw} onClick={() => setShowPw((v) => !v)}>
-            {showPw ? <EyeOffIcon size={14} /> : <EyeIcon size={14} />} {showPw ? "Hide password" : "Show password"}
-          </button>
-          <p className="hint">
-            The current password can't be viewed — only replaced. The new one is saved as a secure hash, and the User is
-            signed out everywhere and must use it.
-          </p>
-          <RowError error={error} />
-          <div className="user-form-actions">
-            <button type="button" className="btn btn-outline btn-sm" onClick={close}>Cancel</button>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>Reset password</button>
-          </div>
-        </form>
-      )}
+            {mode === "reset" && (
+              <form className="row-panel" onSubmit={reset} noValidate aria-label={`Reset password of ${user.login_id}`}>
+                <b>Set a new password for <span className="mono">{user.login_id}</span></b>
+                <div className="formgrid">
+                  <div className="field">
+                    <label htmlFor={`reset-pw-${user.id}`}>New password</label>
+                    <input id={`reset-pw-${user.id}`} type={showPw ? "text" : "password"} value={pw}
+                           onChange={(e) => setPw(e.target.value)} autoComplete="new-password" autoFocus />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`reset-confirm-${user.id}`}>Confirm new password</label>
+                    <input id={`reset-confirm-${user.id}`} type={showPw ? "text" : "password"} value={confirm}
+                           onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+                  </div>
+                </div>
+                <div>
+                  <button type="button" className="linkbtn" aria-pressed={showPw} onClick={() => setShowPw((v) => !v)}>
+                    {showPw ? <EyeOffIcon size={14} /> : <EyeIcon size={14} />} {showPw ? "Hide password" : "Show password"}
+                  </button>
+                </div>
+                <p className="hint">
+                  The current password can't be viewed — only replaced. The new one is saved as a secure hash, and the User is
+                  signed out everywhere and must use it.
+                </p>
+                <RowError error={error} />
+                <div className="actions">
+                  <button type="button" className="ghost" onClick={close}>Cancel</button>
+                  <button type="submit" className="btn sm" disabled={busy}>Reset password</button>
+                </div>
+              </form>
+            )}
 
-      {mode === "delete" && (
-        <div className="user-row-panel user-row-confirm" role="group" aria-label={`Confirm delete ${user.login_id}`}>
-          <p>Delete <strong>{user.login_id}</strong>? They won't be able to sign in. This can't be undone.</p>
-          <div className="user-form-actions">
-            <button type="button" className="btn btn-outline btn-sm" onClick={() => setMode(null)}>Cancel</button>
-            <button type="button" className="btn btn-sm btn-danger" onClick={() => run(onDelete)} disabled={busy}>
-              <TrashIcon size={14} /> Delete User
-            </button>
-          </div>
-        </div>
+            {mode === "delete" && (
+              <div className="row-panel" role="group" aria-label={`Confirm delete ${user.login_id}`}>
+                <p>Delete <strong>{user.login_id}</strong>? They won't be able to sign in. This can't be undone.</p>
+                <div className="actions">
+                  <button type="button" className="ghost" onClick={() => setMode(null)}>Cancel</button>
+                  <button type="button" className="btn solid-danger sm" onClick={() => run(onDelete)} disabled={busy}>
+                    <TrashIcon size={14} /> Delete User
+                  </button>
+                </div>
+              </div>
+            )}
+          </td>
+        </tr>
       )}
-    </li>
+    </tbody>
   );
 }
 
 function RowError({ error }: { error: string | null }) {
   if (!error) return null;
   return (
-    <div className="alert alert-error" role="alert">
+    <div className="alert error" role="alert">
       <AlertIcon size={16} />
       <span>{error}</span>
     </div>

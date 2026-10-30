@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import SearchResults from "./SearchResults";
-import TransporterDrawer from "./TransporterDrawer";
+import TransporterProfile from "./TransporterProfile";
 import type { SearchResponse, TransportResult } from "../services/api";
 
 afterEach(cleanup);
@@ -46,7 +46,7 @@ describe("Service Cities", () => {
   });
 
   it("details drawer summarises service cities, and its Coverage tab lists every one", () => {
-    render(<TransporterDrawer row={row()} onClose={noop} />);
+    render(<TransporterProfile row={row()} onBack={noop} />);
     expect(screen.getByText("See all 5")).toBeTruthy(); // Overview: compact summary + link
     fireEvent.click(screen.getByRole("tab", { name: "Coverage" }));
     expect(screen.getByRole("heading", { name: "Service Cities (5)" })).toBeTruthy();

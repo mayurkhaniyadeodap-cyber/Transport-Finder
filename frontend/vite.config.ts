@@ -9,5 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // Some UI tests sign in several times; 5s (the default) is too tight when every file runs at once.
+    testTimeout: 15000,
   },
 });

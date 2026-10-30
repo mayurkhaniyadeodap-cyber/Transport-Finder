@@ -78,12 +78,12 @@ async function loaded() {
   await screen.findByText("Abhisek Travels");
 }
 
-describe("All Transporters list", () => {
+describe("Transporter directory", () => {
   it("shows every transporter, including Not Active and hidden ones, with the required columns", async () => {
     await loaded();
     const heads = screen.getAllByRole("columnheader").slice(0, 6).map((h) => h.textContent);
-    expect(heads).toEqual(["Transporter Name", "Service Cities", "Pincode", "Mobile", "Status", "Actions"]);
-    const totalTile = screen.getByText("Transporters", { selector: ".tile-label" }).closest(".tile") as HTMLElement;
+    expect(heads).toEqual(["Transporter", "Mobile", "Service Cities", "Pincodes", "Status", "Visibility"]);
+    const totalTile = screen.getByText("Transporters", { selector: ".stat .label" }).closest(".stat") as HTMLElement;
     expect(within(totalTile).getByText("4")).toBeTruthy();
     expect(within(rowOf("Kishan Travels")).getByText("Not Active")).toBeTruthy();
     expect(within(rowOf("Pavan Parcel Service")).getByText("Hidden")).toBeTruthy();
@@ -101,7 +101,7 @@ describe("All Transporters list", () => {
 });
 
 describe("Summary card filters", () => {
-  const tile = (label: string) => screen.getByText(label, { selector: ".tile-label" }).closest("button") as HTMLElement;
+  const tile = (label: string) => screen.getByText(label, { selector: ".stat .label" }).closest("button") as HTMLElement;
   const namesShown = () =>
     within(screen.getByRole("region", { name: "All transporters table" }))
       .getAllByText(/./, { selector: ".transport-name" })
@@ -142,7 +142,7 @@ describe("Summary card filters", () => {
     expect(namesShown()).toEqual(["Kishan Travels"]);
     await user.click(tile("Transporters"));
     expect(namesShown().sort()).toEqual(["Abhisek Travels", "Kishan Travels", "Pavan Parcel Service", "TCI Express"]);
-    expect(screen.getByRole("heading", { name: "All Transporters" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Transporter directory" })).toBeTruthy();
   });
 
   it("a filter pill appears once filtered, and clicking its × clears the filter", async () => {
@@ -225,53 +225,30 @@ describe("Delete", () => {
 
 });
 
-describe("Deleted transporters section", () => {
-  const header = () => screen.getByRole("button", { name: /Deleted transporters/ });
+describe("Recently deleted section", () => {
+  const panel = () => screen.getByRole("region", { name: /Recently deleted/ });
 
-  it("is not shown at all when nothing is deleted", async () => {
+  it("says there are none when nothing is deleted", async () => {
     await loaded();
-    expect(screen.queryByText("Deleted transporters")).toBeNull();
+    expect(within(panel()).getByText("No deleted transporters.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Restore/ })).toBeNull();
   });
 
-  it("shows a collapsed header with the count, and no transporter names, until clicked", async () => {
+  it("lists every deleted transporter, with the count and a Restore button each", async () => {
     listManagedTransporters.mockResolvedValue({ ...LIST, deleted: ["Old Roadways", "Retired Cargo"] });
     await loaded();
-    const btn = header();
-    expect(within(btn).getByText("2")).toBeTruthy(); // count shown on the collapsed header itself
-    expect(btn.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByText("Old Roadways")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
+    expect(within(panel()).getByText("2")).toBeTruthy();
+    expect(within(panel()).getByText("Old Roadways")).toBeTruthy();
+    expect(within(panel()).getByText("Retired Cargo")).toBeTruthy();
+    expect(within(panel()).getAllByRole("button", { name: /Restore/ })).toHaveLength(2);
   });
 
-  it("clicking the header expands it to show every deleted transporter and its Restore button", async () => {
-    listManagedTransporters.mockResolvedValue({ ...LIST, deleted: ["Old Roadways", "Retired Cargo"] });
-    const user = userEvent.setup();
-    await loaded();
-    await user.click(header());
-    expect(header().getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByText("Old Roadways")).toBeTruthy();
-    expect(screen.getByText("Retired Cargo")).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Restore" })).toHaveLength(2);
-  });
-
-  it("clicking the header again collapses it", async () => {
+  it("Restore brings one back", async () => {
     listManagedTransporters.mockResolvedValue({ ...LIST, deleted: ["Old Roadways"] });
     const user = userEvent.setup();
     await loaded();
-    await user.click(header());
-    expect(screen.getByText("Old Roadways")).toBeTruthy();
-    await user.click(header());
-    expect(header().getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByText("Old Roadways")).toBeNull();
-  });
-
-  it("Restore still works once expanded", async () => {
-    listManagedTransporters.mockResolvedValue({ ...LIST, deleted: ["Old Roadways"] });
-    const user = userEvent.setup();
-    await loaded();
-    await user.click(header());
-    const item = screen.getByText("Old Roadways").closest("li")!;
-    await user.click(within(item).getByRole("button", { name: "Restore" }));
+    const item = within(panel()).getByText("Old Roadways").closest("tr")!;
+    await user.click(within(item).getByRole("button", { name: /Restore/ }));
     await waitFor(() => expect(restoreTransporter).toHaveBeenCalledWith("Old Roadways"));
   });
 });
@@ -290,9 +267,7 @@ describe("Hide / Unhide and Edit", () => {
     await user.click(within(rowOf(name)).getByRole("button", { name: "Edit" }));
     return screen.findByRole("dialog", { name: "Edit transporter" });
   };
-  const field = (panel: HTMLElement, label: string) =>
-    within(panel).getByText(label, { exact: false, selector: ".field-label" }).closest("label")!
-      .querySelector("input, textarea, select") as HTMLInputElement;
+  const field = (panel: HTMLElement, label: string) => within(panel).getByLabelText(label, { exact: false }) as HTMLInputElement;
 
   it("Edit shows every field, pre-filled with the transporter's current details", async () => {
     const user = userEvent.setup();
@@ -300,28 +275,28 @@ describe("Hide / Unhide and Edit", () => {
     const panel = await openEdit(user, "Abhisek Travels");
     expect(within(panel).getByRole("heading", { name: "Edit transporter" })).toBeTruthy();
     expect(within(panel).getByText("Abhisek Travels", { selector: ".source-summary-name" })).toBeTruthy();
-    expect(field(panel, "Transporter Name").value).toBe("Abhisek Travels");
-    expect(field(panel, "Service Cities").value).toBe("Ahmedabad, Borivali, Mumbai, Pune, Thane");
-    expect(field(panel, "Pincode(s)").value).toBe("360003, 380001");
-    expect(field(panel, "Mobile Number").value).toBe("");
+    expect(field(panel, "Transporter name").value).toBe("Abhisek Travels");
+    expect(field(panel, "Service cities").value).toBe("Ahmedabad, Borivali, Mumbai, Pune, Thane");
+    expect(field(panel, "Pincodes").value).toBe("360003, 380001");
+    expect(field(panel, "Mobile number").value).toBe("");
     expect(field(panel, "Status").value).toBe("Active");
-    expect((within(panel).getByRole("switch", { name: /Hide from search/ }) as HTMLInputElement).checked).toBe(false);
+    expect(field(panel, "Visibility").value).toBe("visible");
   });
 
   it("Edit saves all changed fields, and only those", async () => {
     const user = userEvent.setup();
     await loaded();
     const panel = await openEdit(user, "Kishan Travels");
-    const nameInput = field(panel, "Transporter Name");
+    const nameInput = field(panel, "Transporter name");
     await user.clear(nameInput);
     await user.type(nameInput, "Kishan Roadlines");
-    await user.type(field(panel, "Service Cities"), ", Surat,{Enter}surat");
-    const pins = field(panel, "Pincode(s)");
+    await user.type(field(panel, "Service cities"), ", Surat,{Enter}surat");
+    const pins = field(panel, "Pincodes");
     await user.clear(pins);
     await user.type(pins, "360001{Enter}395007");
     await user.selectOptions(field(panel, "Status"), "Active");
-    await user.click(within(panel).getByRole("switch", { name: /Hide from search/ }));
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.selectOptions(field(panel, "Visibility"), "hidden");
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(updateTransporter).toHaveBeenCalledWith("Kishan Travels", {
       name: "Kishan Roadlines", service_cities: ["Rajkot", "Surat"], pincodes: ["360001", "395007"],
       status: "Active", hidden: true,
@@ -335,7 +310,7 @@ describe("Hide / Unhide and Edit", () => {
     await loaded();
     const panel = await openEdit(user, "Kishan Travels");
     await user.selectOptions(field(panel, "Status"), "Active");
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(updateTransporter).toHaveBeenCalledWith("Kishan Travels", { status: "Active" }));
   });
 
@@ -343,7 +318,7 @@ describe("Hide / Unhide and Edit", () => {
     const user = userEvent.setup();
     await loaded();
     const panel = await openEdit(user, "TCI Express");
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(updateTransporter).not.toHaveBeenCalled();
   });
@@ -352,8 +327,8 @@ describe("Hide / Unhide and Edit", () => {
     const user = userEvent.setup();
     await loaded();
     const panel = await openEdit(user, "TCI Express");
-    await user.type(field(panel, "Pincode(s)"), ", 12345");
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.type(field(panel, "Pincodes"), ", 12345");
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     expect(within(panel).getByRole("alert").textContent).toContain("12345");
     expect(updateTransporter).not.toHaveBeenCalled();
   });
@@ -363,16 +338,16 @@ describe("Hide / Unhide and Edit", () => {
     const user = userEvent.setup();
     await loaded();
     const panel = await openEdit(user, "Kishan Travels");
-    const nameInput = field(panel, "Transporter Name");
+    const nameInput = field(panel, "Transporter name");
     await user.clear(nameInput);
     await user.type(nameInput, "TCI Express");
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     expect(await within(panel).findByText('Another transporter is already named "TCI Express".')).toBeTruthy();
 
     // ...and that error doesn't follow the Admin into the next panel.
     await user.click(within(panel).getByRole("button", { name: "Cancel" }));
-    await user.click(screen.getByRole("button", { name: "Add Transporter" }));
-    const addPanel = await screen.findByRole("dialog", { name: "Add Transporter" });
+    await user.click(screen.getByRole("button", { name: "Add transporter" }));
+    const addPanel = await screen.findByRole("dialog", { name: "Add transporter" });
     expect(within(addPanel).queryByText(/already named/)).toBeNull();
   });
 });
@@ -401,7 +376,7 @@ describe("Transporter photo (Admin)", () => {
     await user.upload(within(panel).getByLabelText("Upload image"), file);
     expect(within(panel).getByText(/Selected: truck\.png/)).toBeTruthy();
     expect(uploadTransporterPhoto).not.toHaveBeenCalled(); // nothing is sent until Save
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(uploadTransporterPhoto).toHaveBeenCalledWith("TCI Express", file));
     expect(updateTransporter).not.toHaveBeenCalled(); // only the photo changed
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -427,7 +402,7 @@ describe("Transporter photo (Admin)", () => {
     expect(within(panel).getByText("Replace image")).toBeTruthy();
     await user.click(within(panel).getByRole("button", { name: /Remove image/ }));
     expect(within(panel).getByRole("img", { name: "TCI Express (TE)" })).toBeTruthy();
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(removeTransporterPhoto).toHaveBeenCalledWith("TCI Express"));
   });
 
@@ -439,7 +414,7 @@ describe("Transporter photo (Admin)", () => {
     await user.clear(nameInput);
     await user.type(nameInput, "Kishan Roadlines");
     await user.upload(within(panel).getByLabelText("Upload image"), png());
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(updateTransporter).toHaveBeenCalledWith("Kishan Travels", { name: "Kishan Roadlines" }));
     await waitFor(() => expect(uploadTransporterPhoto).toHaveBeenCalledWith("Kishan Roadlines", expect.any(File)));
   });
@@ -456,12 +431,12 @@ describe("Transporter photo (Admin)", () => {
   it("a photo can be added together with a new transporter", async () => {
     const user = userEvent.setup();
     await loaded();
-    await user.click(screen.getByRole("button", { name: "Add Transporter" }));
-    const panel = await screen.findByRole("dialog", { name: "Add Transporter" });
-    await user.type(within(panel).getByPlaceholderText("e.g. Abhisek Travels"), "Om Logistics");
+    await user.click(screen.getByRole("button", { name: "Add transporter" }));
+    const panel = await screen.findByRole("dialog", { name: "Add transporter" });
+    await user.type(within(panel).getByPlaceholderText("e.g. TCI Express"), "Om Logistics");
     const file = png();
     await user.upload(within(panel).getByLabelText("Upload image"), file);
-    await user.click(within(panel).getByRole("button", { name: "Add Transporter" }));
+    await user.click(within(panel).getByRole("button", { name: "Add transporter" }));
     await waitFor(() => expect(addTransporter).toHaveBeenCalled());
     await waitFor(() => expect(uploadTransporterPhoto).toHaveBeenCalledWith("Om Logistics", file));
   });
@@ -479,7 +454,7 @@ describe("Transporter photo (Admin)", () => {
     expect(within(panel).queryByRole("button", { name: /Remove image/ })).toBeNull();
     const file = png();
     await user.upload(within(panel).getByLabelText("Replace image"), file);
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(uploadTransporterPhoto).toHaveBeenCalledWith("TCI Express", file));
     expect(removeTransporterPhoto).not.toHaveBeenCalled();
   });
@@ -493,7 +468,7 @@ describe("Transporter photo (Admin)", () => {
     await loaded();
     const panel = await openEdit(user, "TCI Express");
     await user.click(within(panel).getByRole("button", { name: /Remove image/ }));
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(removeTransporterPhoto).toHaveBeenCalledWith("TCI Express"));
   });
 
@@ -516,22 +491,23 @@ describe("Add Transporter", () => {
   it("has a clear Add Transporter button that opens an empty form", async () => {
     const user = userEvent.setup();
     await loaded();
-    await user.click(screen.getByRole("button", { name: "Add Transporter" }));
-    const panel = await screen.findByRole("dialog", { name: "Add Transporter" });
-    expect(within(panel).getByRole("heading", { name: "Add Transporter" })).toBeTruthy();
-    expect(within(panel).queryByRole("switch")).toBeNull(); // hiding is for existing transporters only
+    await user.click(screen.getByRole("button", { name: "Add transporter" }));
+    const panel = await screen.findByRole("dialog", { name: "Add transporter" });
+    expect(within(panel).getByRole("heading", { name: "Add transporter" })).toBeTruthy();
+    expect((within(panel).getByLabelText("Transporter name", { exact: false }) as HTMLInputElement).value).toBe("");
+    expect((within(panel).getByLabelText("Visibility") as HTMLSelectElement).value).toBe("visible");
   });
 
   it("adds a transporter with name, service cities, pincodes, mobile and status", async () => {
     const user = userEvent.setup();
     await loaded();
-    await user.click(screen.getByRole("button", { name: "Add Transporter" }));
-    const panel = await screen.findByRole("dialog", { name: "Add Transporter" });
-    await user.type(within(panel).getByPlaceholderText("e.g. Abhisek Travels"), "Shree Ganesh Roadways");
+    await user.click(screen.getByRole("button", { name: "Add transporter" }));
+    const panel = await screen.findByRole("dialog", { name: "Add transporter" });
+    await user.type(within(panel).getByPlaceholderText("e.g. TCI Express"), "Shree Ganesh Roadways");
     await user.type(within(panel).getByPlaceholderText("e.g. Mumbai, Pune, Thane"), "Surat, Vapi");
     await user.type(within(panel).getByPlaceholderText("e.g. 400001, 411001"), "396191, 395007");
-    await user.type(within(panel).getByPlaceholderText("e.g. 9876543210"), "9812345678");
-    await user.click(within(panel).getByRole("button", { name: "Add Transporter" }));
+    await user.type(within(panel).getByPlaceholderText("10-digit mobile"), "9812345678");
+    await user.click(within(panel).getByRole("button", { name: "Add transporter" }));
     await waitFor(() => expect(addTransporter).toHaveBeenCalledWith({
       transport_name: "Shree Ganesh Roadways", service_cities: ["Surat", "Vapi"], pincodes: ["396191", "395007"],
       mobile: "9812345678", status: "Active",
@@ -542,9 +518,9 @@ describe("Add Transporter", () => {
   it("requires a Transporter Name", async () => {
     const user = userEvent.setup();
     await loaded();
-    await user.click(screen.getByRole("button", { name: "Add Transporter" }));
-    const panel = await screen.findByRole("dialog", { name: "Add Transporter" });
-    await user.click(within(panel).getByRole("button", { name: "Add Transporter" }));
+    await user.click(screen.getByRole("button", { name: "Add transporter" }));
+    const panel = await screen.findByRole("dialog", { name: "Add transporter" });
+    await user.click(within(panel).getByRole("button", { name: "Add transporter" }));
     expect(within(panel).getByRole("alert").textContent).toContain("Transporter Name is required");
     expect(addTransporter).not.toHaveBeenCalled();
   });
@@ -577,7 +553,7 @@ describe("Pincodes in the list", () => {
         ? { ...x, pincodes: ["380001", "380002", "380003", "380004", "380005"] } : x)),
     });
     await loaded();
-    const cell = rowOf("TCI Express").querySelectorAll("td")[2];
+    const cell = rowOf("TCI Express").querySelectorAll("td")[3];
     expect(cell.textContent).toBe("380001, 380002+3 more");
     expect(cell.querySelector("[title]")?.getAttribute("title")).toBe("380001, 380002, 380003, 380004, 380005"); // full list on hover
   });
@@ -596,7 +572,7 @@ describe("Approx. Shipment Charge / 1 Box (Admin)", () => {
     const input = within(panel).getByLabelText("Approx. Shipment Charge / 1 Box (₹)") as HTMLInputElement;
     expect(input.value).toBe("");
     await user.type(input, "75.50");
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(updateTransporter).toHaveBeenCalledWith("TCI Express", { shipment_charge: "75.50" }));
   });
 
@@ -610,7 +586,7 @@ describe("Approx. Shipment Charge / 1 Box (Admin)", () => {
     const input = within(panel).getByLabelText("Approx. Shipment Charge / 1 Box (₹)") as HTMLInputElement;
     expect(input.value).toBe("120");
     await user.clear(input);
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(updateTransporter).toHaveBeenCalledWith("TCI Express", { shipment_charge: "" }));
   });
 
@@ -624,7 +600,7 @@ describe("Approx. Shipment Charge / 1 Box (Admin)", () => {
     const mobile = within(panel).getByDisplayValue("9876543210");
     await user.clear(mobile);
     await user.type(mobile, "9999999999");
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(updateTransporter).toHaveBeenCalledWith("TCI Express", { mobile: "9999999999" }));
   });
 
@@ -633,7 +609,7 @@ describe("Approx. Shipment Charge / 1 Box (Admin)", () => {
     await loaded();
     const panel = await openEdit(user, "TCI Express");
     await user.type(within(panel).getByLabelText("Approx. Shipment Charge / 1 Box (₹)"), bad);
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     expect(within(panel).getByRole("alert").textContent).toContain("up to 2 decimals");
     expect(updateTransporter).not.toHaveBeenCalled();
   });
@@ -643,15 +619,19 @@ describe("Approx. Shipment Charge / 1 Box (Admin)", () => {
     await loaded();
     const panel = await openEdit(user, "TCI Express");
     await user.type(within(panel).getByLabelText("Approx. Shipment Charge / 1 Box (₹)"), "₹1,250");
-    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await user.click(within(panel).getByRole("button", { name: "Save transporter" }));
     await waitFor(() => expect(updateTransporter).toHaveBeenCalledWith("TCI Express", { shipment_charge: "1250" }));
   });
 
-  it("isn't part of the Add Transporter form", async () => {
+  it("can be set while adding a transporter (saved right after it's added)", async () => {
     const user = userEvent.setup();
     await loaded();
-    await user.click(screen.getByRole("button", { name: "Add Transporter" }));
-    const panel = await screen.findByRole("dialog", { name: "Add Transporter" });
-    expect(within(panel).queryByLabelText("Approx. Shipment Charge / 1 Box (₹)")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Add transporter" }));
+    const panel = await screen.findByRole("dialog", { name: "Add transporter" });
+    await user.type(within(panel).getByPlaceholderText("e.g. TCI Express"), "Om Logistics");
+    await user.type(within(panel).getByLabelText("Approx. Shipment Charge / 1 Box (₹)"), "45");
+    await user.click(within(panel).getByRole("button", { name: "Add transporter" }));
+    await waitFor(() => expect(addTransporter).toHaveBeenCalled());
+    await waitFor(() => expect(updateTransporter).toHaveBeenCalledWith("Om Logistics", { shipment_charge: "45" }));
   });
 });

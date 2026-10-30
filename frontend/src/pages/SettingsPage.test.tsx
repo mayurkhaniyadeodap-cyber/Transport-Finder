@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import App from "../App";
@@ -17,10 +17,10 @@ afterEach(cleanup);
 async function loginAs(role: "Admin" | "User", id?: string, password?: string) {
   const user = userEvent.setup();
   if (role === "User") await user.click(screen.getByRole("tab", { name: /User/ }));
-  await user.type(screen.getByPlaceholderText(`Enter ${role} ID`), id ?? `${role}_deodap@123`);
-  await user.type(screen.getByPlaceholderText("Enter Password"), password ?? `${role}@123`);
-  await user.click(screen.getByRole("button", { name: new RegExp(`Login as ${role}`) }));
-  await screen.findByText("Find Transporters Near You");
+  await user.type(screen.getByPlaceholderText("Enter your login ID"), id ?? `${role}_deodap@123`);
+  await user.type(screen.getByPlaceholderText("Enter password"), password ?? `${role}@123`);
+  await user.click(screen.getByRole("button", { name: new RegExp(`Sign in as ${role}`) }));
+  await screen.findByText("Find the right transporter.");
   return user;
 }
 
@@ -32,7 +32,12 @@ async function openSettings(role: "Admin" | "User") {
   return user;
 }
 
-const section = (name: string) => screen.getByRole("region", { name });
+// Settings sections are tabs: open the tab, then work inside its panel.
+const TAB: Record<string, string> = { Preferences: "Search preferences", "User Management": "User management" };
+const section = (name: string) => {
+  fireEvent.click(screen.getByRole("tab", { name: TAB[name] ?? name }));
+  return screen.getByRole("tabpanel", { name: TAB[name] ?? name });
+};
 
 describe("Settings navigation", () => {
   it.each(["Admin", "User"] as const)("%s sees Settings in the navigation and it opens the page", async (role) => {
@@ -50,7 +55,7 @@ describe("Settings navigation", () => {
 
   it("adding Settings doesn't give User the Manage Transporters page", async () => {
     await openSettings("User");
-    expect(screen.queryByRole("button", { name: "Manage Transporters" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Manage transporters" })).toBeNull();
   });
 });
 
@@ -75,7 +80,7 @@ describe("Account", () => {
     expect(backend.admin.login_id).toBe("Admin_deodap@123"); // Admin untouched
 
     await user.click(within(section("Security")).getByRole("button", { name: /Log out/ }));
-    await screen.findByText("Welcome Back");
+    await screen.findByText("Welcome back");
     await loginAs("User", "desk_user", "User@123");
   });
 
@@ -122,7 +127,7 @@ describe("Security", () => {
   it("Log out ends the session and returns to the login page", async () => {
     const user = await openSettings("User");
     await user.click(within(section("Security")).getByRole("button", { name: /Log out/ }));
-    expect(await screen.findByText("Welcome Back")).toBeTruthy();
+    expect(await screen.findByText("Welcome back")).toBeTruthy();
     expect(sessionStorage.getItem("transportFinder.token")).toBeNull();
     expect(backend.sessions.size).toBe(0);
   });
@@ -134,7 +139,7 @@ describe("Security", () => {
     await user.type(within(acct).getByLabelText("New Admin ID"), "x_admin");
     await user.type(within(acct).getByLabelText("Current password"), "Admin@123");
     await user.click(within(acct).getByRole("button", { name: "Change Admin ID" }));
-    expect(await screen.findByText("Welcome Back")).toBeTruthy();
+    expect(await screen.findByText("Welcome back")).toBeTruthy();
   });
 });
 
@@ -155,7 +160,7 @@ describe("Appearance", () => {
     window.matchMedia = ((q: string) => ({ matches: q.includes("dark"), addEventListener() {}, removeEventListener() {} })) as never;
     const user = await openSettings("Admin");
     const group = within(section("Appearance"));
-    expect(group.getByRole("radio", { name: "System" }).getAttribute("aria-checked")).toBe("true"); // the default
+    expect(group.getByRole("radio", { name: "Dark" }).getAttribute("aria-checked")).toBe("true"); // the default
     await user.click(group.getByRole("radio", { name: "Light" }));
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
     await user.click(group.getByRole("radio", { name: "System" }));

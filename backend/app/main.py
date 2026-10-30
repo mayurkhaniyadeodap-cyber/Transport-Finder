@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from .config import settings
-from .routes import health, manage, overrides, settings_routes, transport
+from .routes import activity, health, manage, overrides, settings_routes, transport
 from .services import excel_search, overrides_store
 
 log = logging.getLogger("uvicorn.error")  # shows in the uvicorn console alongside its own startup lines
@@ -73,3 +73,4 @@ app.include_router(transport.router, prefix="/api")
 app.include_router(overrides.router, prefix="/api")
 app.include_router(manage.router, prefix="/api")
 app.include_router(settings_routes.router, prefix="/api")
+app.include_router(activity.router, prefix="/api")
