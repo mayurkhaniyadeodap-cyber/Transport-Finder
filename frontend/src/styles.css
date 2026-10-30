@@ -233,6 +233,8 @@ td .status { margin-left: 0; }
 .data .badges { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
 .data .panel-row td { background: var(--bg); }
 .data .panel-row:hover td { background: var(--bg); }
+.chev { display: inline-grid; place-items: center; transition: transform .15s; }
+.chev.up { transform: rotate(180deg); }
 /* Clickable results: the whole row/card opens the profile; the name itself is the keyboard target */
 .data tr.clickable { cursor: pointer; }
 .result.clickable { cursor: pointer; }

@@ -234,19 +234,28 @@ describe("Recently deleted section", () => {
     expect(screen.queryByRole("button", { name: /Restore/ })).toBeNull();
   });
 
-  it("lists every deleted transporter, with the count and a Restore button each", async () => {
+  it("starts collapsed, showing only the count; Show opens the list and Hide closes it", async () => {
     listManagedTransporters.mockResolvedValue({ ...LIST, deleted: ["Old Roadways", "Retired Cargo"] });
+    const user = userEvent.setup();
     await loaded();
     expect(within(panel()).getByText("2")).toBeTruthy();
+    expect(within(panel()).queryByText("Old Roadways")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Restore/ })).toBeNull();
+    const toggle = within(panel()).getByRole("button", { name: /Show 2/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    await user.click(toggle);
     expect(within(panel()).getByText("Old Roadways")).toBeTruthy();
     expect(within(panel()).getByText("Retired Cargo")).toBeTruthy();
     expect(within(panel()).getAllByRole("button", { name: /Restore/ })).toHaveLength(2);
+    await user.click(within(panel()).getByRole("button", { name: /Hide/ }));
+    expect(within(panel()).queryByText("Old Roadways")).toBeNull();
   });
 
   it("Restore brings one back", async () => {
     listManagedTransporters.mockResolvedValue({ ...LIST, deleted: ["Old Roadways"] });
     const user = userEvent.setup();
     await loaded();
+    await user.click(within(panel()).getByRole("button", { name: /Show 1/ }));
     const item = within(panel()).getByText("Old Roadways").closest("tr")!;
     await user.click(within(item).getByRole("button", { name: /Restore/ }));
     await waitFor(() => expect(restoreTransporter).toHaveBeenCalledWith("Old Roadways"));

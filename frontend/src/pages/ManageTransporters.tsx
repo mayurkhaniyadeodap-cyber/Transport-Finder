@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CompactList, PincodeSummary } from "../components/CityList";
-import { AlertIcon, EmptyIcon, InfoIcon, PlusIcon, RotateCcwIcon, SearchIcon, XIcon } from "../components/Icons";
+import { AlertIcon, ChevronDownIcon, EmptyIcon, InfoIcon, PlusIcon, RotateCcwIcon, SearchIcon, XIcon } from "../components/Icons";
 import Modal from "../components/Modal";
 import { Avatar, OverrideBadge, OverrideKind, Pagination, StatusBadge } from "../components/ui";
 import { deriveTransportType } from "../searchDefaults";
@@ -48,6 +48,7 @@ export default function ManageTransporters() {
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [deletedOpen, setDeletedOpen] = useState(false); // Recently deleted starts collapsed
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -382,15 +383,24 @@ export default function ManageTransporters() {
       </section>
 
       <section className="panel section" aria-labelledby="deleted-title">
-        <h3 id="deleted-title">
-          Recently deleted {list && list.deleted.length > 0 && <span className="count">{list.deleted.length}</span>}
-        </h3>
-        {!list || list.deleted.length === 0 ? (
-          <p className="sub">No deleted transporters.</p>
-        ) : (
+        <div className="resulthead">
+          <div>
+            <h3 id="deleted-title">
+              Recently deleted {list && list.deleted.length > 0 && <span className="count">{list.deleted.length}</span>}
+            </h3>
+            <p>{!list || list.deleted.length === 0 ? "No deleted transporters." : "Removed from Search and the directory above. Restore to bring one back."}</p>
+          </div>
+          {list && list.deleted.length > 0 && (
+            <button type="button" className="btn secondary sm" aria-expanded={deletedOpen} aria-controls="deleted-list"
+                    onClick={() => setDeletedOpen((v) => !v)}>
+              {deletedOpen ? "Hide" : `Show ${list.deleted.length}`}
+              <span className={`chev ${deletedOpen ? "up" : ""}`}><ChevronDownIcon size={14} /></span>
+            </button>
+          )}
+        </div>
+        {list && list.deleted.length > 0 && deletedOpen && (
           <>
-            <p className="sub" style={{ marginBottom: 10 }}>Removed from Search and the directory above. Restore to bring one back.</p>
-            <div className="tablewrap flat">
+            <div className="tablewrap flat" id="deleted-list">
               <table className="data" style={{ minWidth: 0 }}>
                 <tbody>
                   {list.deleted.map((name) => (
