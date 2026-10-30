@@ -334,11 +334,14 @@ td .status { margin-left: 0; }
 .photo-field-actions > div { display: flex; gap: 8px; flex-wrap: wrap; }
 .upload-btn { position: relative; cursor: pointer; }
 .upload-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
-.lightbox { background: var(--panel); border: 1px solid var(--line2); border-radius: 16px; padding: 22px; width: min(520px, 100%); text-align: center; position: relative; animation: pop-in .18s ease; }
-.lightbox .close { position: absolute; right: 14px; top: 14px; }
-.lightbox-frame { display: grid; place-items: center; min-height: 240px; margin: 18px 0 12px; }
-.lightbox-frame img { max-width: 100%; max-height: 60vh; border-radius: 12px; background: #fff; }
-.lightbox-frame .logo { width: 160px; height: 160px; font-size: 40px; border-radius: 24px; }
+.lightbox { background: var(--panel); border: 1px solid var(--line2); border-radius: 16px; padding: 22px; width: min(960px, 100%); text-align: center; position: relative; animation: pop-in .18s ease; }
+.lightbox .close { position: absolute; right: 14px; top: 14px; z-index: 1; }
+/* The image opens as large as the dialog allows; a click zooms to 2x with scrolling, a click again fits it */
+.lightbox-frame { display: grid; place-items: center; min-height: 240px; max-height: 72vh; overflow: auto; margin: 18px 0 12px; border-radius: 12px; background: var(--bg); cursor: zoom-in; }
+.lightbox-frame img.logo { width: auto; height: auto; max-width: 100%; max-height: 72vh; border-radius: 12px; border: 0; padding: 0; background: #fff; }
+.lightbox-frame .short-name { width: 160px; height: 160px; font-size: 40px; border-radius: 24px; }
+.lightbox-frame.zoomed { display: block; cursor: zoom-out; }
+.lightbox-frame.zoomed img.logo { width: 200%; max-width: none; max-height: none; border-radius: 0; }
 
 /* ---------- States ---------- */
 .empty { padding: 35px 20px; text-align: center; color: var(--muted); }

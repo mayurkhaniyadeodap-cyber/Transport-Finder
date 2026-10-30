@@ -202,6 +202,7 @@ function ImagePreview({ name, photoUrl, source, onClose }: {
   name: string; photoUrl?: string | null; source?: PhotoSource; onClose: () => void;
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
+  const [zoomed, setZoomed] = useState(false); // fit to the dialog, or 2x with scrolling
   useEffect(() => closeButton.current?.focus(), []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -215,11 +216,13 @@ function ImagePreview({ name, photoUrl, source, onClose }: {
         <button type="button" ref={closeButton} className="close" onClick={onClose} aria-label="Close image preview">
           <XIcon size={16} />
         </button>
-        <div className="lightbox-frame">
+        <div className={`lightbox-frame ${zoomed ? "zoomed" : ""}`} onClick={() => photoUrl && setZoomed((z) => !z)}
+             title={photoUrl ? (zoomed ? "Click to fit" : "Click to zoom in") : undefined}>
           <TransporterPhoto name={name} photoUrl={photoUrl} className="lightbox-image" />
         </div>
         <b>{name}</b>
         {caption && <p className="photo-source">{caption}</p>}
+        {photoUrl && <p className="hint">{zoomed ? "Scroll to look around · click the image to fit it again" : "Click the image to zoom in"}</p>}
       </div>
     </div>
   );
