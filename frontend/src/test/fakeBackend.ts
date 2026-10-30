@@ -51,8 +51,8 @@ export function installFakeBackend(): FakeBackend {
 
     if (url === "/api/auth/login") {
       const token = `tok-${++n}`;
-      if (body.role === "admin") {
-        if (body.login_id !== fb.admin.login_id || body.password !== fb.admin.password) return json(401, { detail: "Invalid ID or password" });
+      if (body.login_id === fb.admin.login_id) { // like the server, the ID alone decides the account
+        if (body.password !== fb.admin.password) return json(401, { detail: "Invalid ID or password" });
         fb.sessions.set(token, { role: "admin" });
         return json(200, { token, role: "admin", login_id: fb.admin.login_id });
       }

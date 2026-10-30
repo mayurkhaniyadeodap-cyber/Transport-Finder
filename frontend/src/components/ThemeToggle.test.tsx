@@ -68,10 +68,9 @@ describe("Top bar Light/Dark toggle", () => {
   it.each(["Admin", "User"] as const)("is in the top bar for %s, and doesn't change the page you're on", async (role) => {
     render(<App />);
     const user = userEvent.setup();
-    if (role === "User") await user.click(screen.getByRole("tab", { name: /User/ }));
     await user.type(screen.getByPlaceholderText("Enter your login ID"), `${role}_deodap@123`);
     await user.type(screen.getByPlaceholderText("Enter password"), `${role}@123`);
-    await user.click(screen.getByRole("button", { name: new RegExp(`Sign in as ${role}`) }));
+    await user.click(screen.getByRole("button", { name: /^Sign in/ }));
     await screen.findByText("Find the right transporter.");
     const topbar = document.querySelector(".topbar") as HTMLElement;
     await user.click(within(topbar).getByRole("button", { name: "Switch to light theme" }));
@@ -86,7 +85,7 @@ describe("Toggle and Settings > Appearance stay in sync", () => {
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText("Enter your login ID"), "Admin_deodap@123");
     await user.type(screen.getByPlaceholderText("Enter password"), "Admin@123");
-    await user.click(screen.getByRole("button", { name: /Sign in as Admin/ }));
+    await user.click(screen.getByRole("button", { name: /^Sign in/ }));
     await screen.findByText("Find the right transporter.");
     await user.click(screen.getByRole("button", { name: "Settings" }));
     await user.click(await screen.findByRole("tab", { name: "Appearance" }));

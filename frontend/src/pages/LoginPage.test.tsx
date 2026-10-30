@@ -10,21 +10,12 @@ beforeEach(() => {
 });
 
 describe("LoginPage", () => {
-  it("defaults to the Admin tab with a Login ID field and Sign in as Admin", () => {
+  it("is one form for everyone: Login ID, Password and Sign in, with no Admin/User choice", () => {
     render(<LoginPage onLogin={vi.fn()} />);
-    expect(screen.getByRole("tab", { name: /Admin/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByLabelText("Login ID")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Sign in as Admin/ })).toBeTruthy();
     expect(screen.getByPlaceholderText("Enter your login ID")).toBeTruthy();
-  });
-
-  it("switching to the User tab changes the button to User", async () => {
-    const user = userEvent.setup();
-    render(<LoginPage onLogin={vi.fn()} />);
-    await user.click(screen.getByRole("tab", { name: /User/ }));
-    expect(screen.getByRole("tab", { name: /User/ }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByRole("button", { name: /Sign in as User/ })).toBeTruthy();
-    expect(screen.getByPlaceholderText("Enter your login ID")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Sign in/ })).toBeTruthy();
+    expect(screen.queryByRole("tab")).toBeNull();
   });
 
   it("password is hidden by default and the eye button toggles it to plain text", async () => {
@@ -42,7 +33,7 @@ describe("LoginPage", () => {
     const onLogin = vi.fn();
     const user = userEvent.setup();
     render(<LoginPage onLogin={onLogin} />);
-    await user.click(screen.getByRole("button", { name: /Sign in as Admin/ }));
+    await user.click(screen.getByRole("button", { name: /^Sign in/ }));
     expect(onLogin).not.toHaveBeenCalled();
     expect(screen.getByText(/Enter both your ID and password/)).toBeTruthy();
   });
@@ -53,18 +44,18 @@ describe("LoginPage", () => {
     render(<LoginPage onLogin={onLogin} />);
     await user.type(screen.getByPlaceholderText("Enter your login ID"), "someone");
     await user.type(screen.getByPlaceholderText("Enter password"), "anything");
-    await user.click(screen.getByRole("button", { name: /Sign in as Admin/ }));
+    await user.click(screen.getByRole("button", { name: /^Sign in/ }));
     expect(await screen.findByText("Invalid ID or password")).toBeTruthy();
     expect(onLogin).not.toHaveBeenCalled();
   });
 
-  it("rejects the User credentials while the Admin tab is selected", async () => {
+  it("rejects the right ID with the wrong password", async () => {
     const onLogin = vi.fn();
     const user = userEvent.setup();
     render(<LoginPage onLogin={onLogin} />);
     await user.type(screen.getByPlaceholderText("Enter your login ID"), "User_deodap@123");
-    await user.type(screen.getByPlaceholderText("Enter password"), "User@123");
-    await user.click(screen.getByRole("button", { name: /Sign in as Admin/ }));
+    await user.type(screen.getByPlaceholderText("Enter password"), "wrong-password");
+    await user.click(screen.getByRole("button", { name: /^Sign in/ }));
     expect(await screen.findByText("Invalid ID or password")).toBeTruthy();
     expect(onLogin).not.toHaveBeenCalled();
   });
@@ -73,10 +64,9 @@ describe("LoginPage", () => {
     const onLogin = vi.fn();
     const user = userEvent.setup();
     render(<LoginPage onLogin={onLogin} />);
-    await user.click(screen.getByRole("tab", { name: /User/ }));
     await user.type(screen.getByPlaceholderText("Enter your login ID"), "User_deodap@123");
     await user.type(screen.getByPlaceholderText("Enter password"), "User@123");
-    await user.click(screen.getByRole("button", { name: /Sign in as User/ }));
+    await user.click(screen.getByRole("button", { name: /^Sign in/ }));
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith("user", expect.any(String)));
   });
 
@@ -86,7 +76,25 @@ describe("LoginPage", () => {
     render(<LoginPage onLogin={onLogin} />);
     await user.type(screen.getByPlaceholderText("Enter your login ID"), "Admin_deodap@123");
     await user.type(screen.getByPlaceholderText("Enter password"), "Admin@123");
-    await user.click(screen.getByRole("button", { name: /Sign in as Admin/ }));
+    await user.click(screen.getByRole("button", { name: /^Sign in/ }));
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith("admin", expect.any(String)));
+  });
+
+  it("the left side is the India map with a truck leaving Gujarat, on top of which sit the project's text and map credit", () => {
+    render(<LoginPage onLogin={vi.fn()} />);
+    const side = screen.getByRole("region", { name: "About Transport Finder" });
+    const map = side.querySelector("svg.loginmap")!;
+    expect(map.getAttribute("aria-hidden")).toBe("true"); // a picture: nothing for a screen reader to read out
+    expect(map.querySelectorAll("animateMotion").length).toBeGreaterThan(0);
+    expect(side.textContent).toContain("The right transporter for every pincode.");
+    expect(side.textContent).toContain("CC BY 4.0");
+  });
+
+  it("the truck stays parked for people who ask their device to reduce motion", () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: q.includes("reduce") })) as never;
+    render(<LoginPage onLogin={vi.fn()} />);
+    expect(document.querySelector("svg.loginmap animateMotion")).toBeNull();
+    window.matchMedia = original;
   });
 });

@@ -16,7 +16,7 @@ async function signIn() {
   const user = userEvent.setup();
   await user.type(screen.getByPlaceholderText("Enter your login ID"), "Admin_deodap@123");
   await user.type(screen.getByPlaceholderText("Enter password"), "Admin@123");
-  await user.click(screen.getByRole("button", { name: /Sign in as Admin/ }));
+  await user.click(screen.getByRole("button", { name: /^Sign in/ }));
   await screen.findByText("Search to see transporters");
   return user;
 }

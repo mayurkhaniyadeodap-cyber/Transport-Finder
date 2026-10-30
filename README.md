@@ -565,7 +565,7 @@ doesn't render it for a User, and a guard resets the view to Search).
 | `POST /api/manage/transporters/photo?transport_name=` | Upload/replace a transporter's photo — body: the raw image bytes (JPEG/PNG/WebP, ≤ 2 MB; `422` if not a real image, `413` if too big, `404` unknown transporter); returns `{photo_url}` |
 | `DELETE /api/manage/transporters/photo?transport_name=` | Remove a transporter's photo |
 | `GET /api/transport/photo?key=&v=` | A photo, as linked by `photo_url` on search and Manage rows (`v` changes whenever the photo does) |
-| `POST /api/auth/login` | Sign in — body: `role` (`admin`/`user`), `login_id`, `password`; returns `{token, role, login_id}` (`401` wrong credentials, `429` too many attempts) |
+| `POST /api/auth/login` | Sign in — body: `login_id`, `password` (the ID alone decides whether it is the Admin or a User; an optional `role` limits the search to that kind); returns `{token, role, login_id}` (`401` wrong credentials, `429` too many attempts) |
 | `POST /api/auth/logout` | End the session in `Authorization: Bearer <token>` |
 | `GET /api/settings/account` | The signed-in role and its login ID (needs the Bearer token; `401` without a valid session) |
 | `PATCH /api/settings/account` | Change your own ID and/or password — body: `current_password` plus `new_login_id` and/or `new_password` (`422` wrong current password or invalid value) |
@@ -645,7 +645,7 @@ pagination) live in `src/components/ui.tsx`.
   transporters (Admin only); Preferences: Settings, Activity log — with the signed-in ID at the
   bottom; a top bar with the page title and breadcrumb, the Light/Dark toggle and the account menu
   (Settings, Log out). Below 900px the same nav becomes a bottom tab bar.
-- **Login:** one centred card; Admin/User is a segmented switch, then Login ID and Password.
+- **Login:** two sides. The left is a full-size map of India with the project's headline and key points on top, and one truck driving from Gujarat to a different state on each trip (`src/components/LoginMap.tsx`; a picture only, not real shipments, and it stays still for people who ask their device to reduce motion). The right is the form: Login ID and Password. There is no Admin/User choice: the server finds the account by its ID, so the same form signs in both. The map outlines (`src/components/indiaMapData.ts`) are simplified from [`@svg-maps/india`](https://github.com/VictorCazanave/svg-maps) by Victor Cazanave, CC BY 4.0; the credit line on the page is part of that licence, so keep it.
 - **Find transport:** page header, the single search box with autocomplete and Popular searches,
   then results. A 6-digit value is sent as pincode; anything else is tried as city, then state, then
   transporter name (`searchUnified()` in `src/searchDefaults.ts`), still just the one search API.

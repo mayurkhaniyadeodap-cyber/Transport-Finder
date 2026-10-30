@@ -202,3 +202,19 @@ def test_settings_are_stored_in_the_local_sqlite_file_only():
     client.put("/api/settings/preferences", headers=auth(token_for()), json={"results_per_page": 100})
     rows = dict(db_rows("SELECT key, value FROM app_settings WHERE key != '_users_initialized'"))
     assert rows == {"results_per_page": "100"}
+
+
+def test_one_sign_in_for_both_roles_the_id_decides_the_account():
+    for login_id, password, role in ((*ADMIN, "admin"), (*USER, "user")):
+        r = client.post("/api/auth/login", json={"login_id": login_id, "password": password})
+        assert r.status_code == 200 and r.json()["role"] == role and r.json()["login_id"] == login_id
+
+
+def test_sign_in_without_a_role_still_rejects_wrong_details():
+    assert client.post("/api/auth/login", json={"login_id": ADMIN[0], "password": "wrong"}).status_code == 401
+    assert client.post("/api/auth/login", json={"login_id": USER[0], "password": ADMIN[1]}).status_code == 401
+    assert client.post("/api/auth/login", json={"login_id": "nobody", "password": "x"}).status_code == 401
+
+
+def test_a_role_that_does_not_match_the_id_is_refused():
+    assert client.post("/api/auth/login", json={"role": "user", "login_id": ADMIN[0], "password": ADMIN[1]}).status_code == 401

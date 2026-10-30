@@ -23,10 +23,9 @@ const DEMO_CREDENTIALS = {
 
 async function loginAs(role: "Admin" | "User") {
   const user = userEvent.setup();
-  if (role === "User") await user.click(screen.getByRole("tab", { name: /User/ }));
   await user.type(screen.getByPlaceholderText("Enter your login ID"), DEMO_CREDENTIALS[role].id);
   await user.type(screen.getByPlaceholderText("Enter password"), DEMO_CREDENTIALS[role].password);
-  await user.click(screen.getByRole("button", { name: new RegExp(`Sign in as ${role}`) }));
+  await user.click(screen.getByRole("button", { name: /^Sign in/ }));
 }
 
 describe("post-login landing page", () => {

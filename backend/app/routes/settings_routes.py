@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 class LoginIn(BaseModel):
-    role: Literal["admin", "user"]
+    role: Literal["admin", "user"] | None = None  # optional: the ID alone decides which account it is
     login_id: str
     password: str
 
@@ -59,14 +59,13 @@ def _handle(fn, *args, **kwargs):
 @router.post("/auth/login")
 def login(body: LoginIn, ip: str | None = Depends(_ip)):
     try:
-        out = _handle(accounts.login, body.role, body.login_id, body.password)
+        out = _handle(accounts.login, body.login_id, body.password, body.role)
     except HTTPException as exc:
         if exc.status_code in (401, 403):  # wrong ID/password, or a deactivated User
-            reason = "account deactivated" if exc.status_code == 403 else "wrong ID or password"
-            activity.record(None, "session", "Sign-in failed", f"{body.role.title()} sign-in: {reason}",
-                            ip=ip, login_id=body.login_id.strip()[:64])
+            reason = "Account deactivated" if exc.status_code == 403 else "Wrong ID or password"
+            activity.record(None, "session", "Sign-in failed", reason, ip=ip, login_id=body.login_id.strip()[:64])
         raise
-    activity.record(accounts.session_identity(out["token"]), "session", "Signed in", f"{body.role.title()} sign-in",
+    activity.record(accounts.session_identity(out["token"]), "session", "Signed in", f"{out['role'].title()} sign-in",
                     ip=ip, login_id=out["login_id"])
     return out
 

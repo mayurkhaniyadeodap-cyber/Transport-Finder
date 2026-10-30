@@ -53,13 +53,14 @@ const MOCK_ACCOUNTS: Record<Role, { id: string; password: string }> = {
   user: { id: "User_deodap@123", password: "User@123" },
 };
 
-export async function login(role: Role, login_id: string, password: string): Promise<LoginResult> {
+/** One sign-in for everyone: the server works out from the ID whether it's the Admin or a User. */
+export async function login(login_id: string, password: string): Promise<LoginResult> {
   if (USE_MOCK) {
-    const m = MOCK_ACCOUNTS[role];
-    if (login_id.trim() !== m.id || password !== m.password) throw new ApiError("Invalid ID or password", 401);
-    return { role, login_id: m.id, token: "mock" };
+    const role = (Object.keys(MOCK_ACCOUNTS) as Role[]).find((r) => MOCK_ACCOUNTS[r].id === login_id.trim());
+    if (!role || password !== MOCK_ACCOUNTS[role].password) throw new ApiError("Invalid ID or password", 401);
+    return { role, login_id: MOCK_ACCOUNTS[role].id, token: "mock" };
   }
-  return call("/api/auth/login", null, { method: "POST", body: JSON.stringify({ role, login_id, password }) });
+  return call("/api/auth/login", null, { method: "POST", body: JSON.stringify({ login_id, password }) });
 }
 
 export async function logout(token: string): Promise<void> {

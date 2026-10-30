@@ -16,10 +16,9 @@ afterEach(cleanup);
 
 async function loginAs(role: "Admin" | "User", id?: string, password?: string) {
   const user = userEvent.setup();
-  if (role === "User") await user.click(screen.getByRole("tab", { name: /User/ }));
   await user.type(screen.getByPlaceholderText("Enter your login ID"), id ?? `${role}_deodap@123`);
   await user.type(screen.getByPlaceholderText("Enter password"), password ?? `${role}@123`);
-  await user.click(screen.getByRole("button", { name: new RegExp(`Sign in as ${role}`) }));
+  await user.click(screen.getByRole("button", { name: /^Sign in/ }));
   await screen.findByText("Find the right transporter.");
   return user;
 }

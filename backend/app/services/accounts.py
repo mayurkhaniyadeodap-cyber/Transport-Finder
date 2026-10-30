@@ -192,8 +192,8 @@ def _user_out(row) -> dict:
 
 # --- sign-in ----------------------------------------------------------------------------------
 
-def _rate_key(role: str, login_id: str) -> str:
-    return f"{role}:{login_id.strip().lower()}"
+def _rate_key(login_id: str) -> str:
+    return login_id.strip().lower()
 
 
 def _check_rate(key: str) -> None:
@@ -209,21 +209,32 @@ def _record_failure(key: str) -> None:
         _failures.setdefault(key, []).append(time.monotonic())
 
 
-def login(role: str, login_id: str, password: str) -> dict:
-    """Checks the ID and password for that role; returns a new session {token, role, login_id}."""
-    if role not in ROLES:
+def _find_account(conn, login_id: str, role: str | None):
+    """(role, row, user_id) of the account with this ID, or (None, None, None). A User's ID can
+    never equal the Admin's (see _id_taken), so one ID always means one account."""
+    login_id = login_id.strip()
+    if role in (None, "admin"):
+        admin = _admin_row(conn)
+        if login_id == admin["login_id"]:
+            return "admin", admin, None
+    if role in (None, "user"):
+        row = conn.execute("SELECT * FROM app_users WHERE login_id = ?", (login_id,)).fetchone()
+        if row is not None:
+            return "user", row, row["id"]
+    return None, None, None
+
+
+def login(login_id: str, password: str, role: str | None = None) -> dict:
+    """Checks the ID and password; returns a new session {token, role, login_id}. The role comes
+    from the account the ID belongs to; passing `role` only limits the search to that kind."""
+    if role is not None and role not in ROLES:
         raise AuthError("Invalid ID or password")
-    key = _rate_key(role, login_id)
+    key = _rate_key(login_id)
     _check_rate(key)
     conn = _connect()
     try:
-        if role == "admin":
-            row, user_id = _admin_row(conn), None
-            ok = login_id.strip() == row["login_id"] and verify_password(password, row["password_hash"])
-        else:
-            row = conn.execute("SELECT * FROM app_users WHERE login_id = ?", (login_id.strip(),)).fetchone()
-            user_id = row["id"] if row else None
-            ok = row is not None and verify_password(password, row["password_hash"])
+        role, row, user_id = _find_account(conn, login_id, role)
+        ok = row is not None and verify_password(password, row["password_hash"])
         if not ok:
             _record_failure(key)
             raise AuthError("Invalid ID or password")
